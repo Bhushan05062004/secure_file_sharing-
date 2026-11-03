@@ -120,5 +120,10 @@ def init_db():
     d.execute("UPDATE users SET role='it_admin' WHERE role='admin'")
 
     file_cols = [r["name"] for r in d.execute("PRAGMA table_info(files)").fetchall()]
+    if "sha256" in file_cols:
+        try:
+            d.execute("ALTER TABLE files DROP COLUMN sha256")
+        except sqlite3.OperationalError:
+            pass
     if "content_hmac" not in file_cols:
         d.execute("ALTER TABLE files ADD COLUMN content_hmac TEXT NOT NULL DEFAULT ''")

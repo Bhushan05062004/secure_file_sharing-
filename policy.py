@@ -194,3 +194,4 @@ def require_permission(action: str, resource_getter=None):
             return view(*args, **kwargs)
         return wrapper
     return decorator
+
