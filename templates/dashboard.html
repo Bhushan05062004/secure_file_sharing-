@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}My Files — SecureShare{% endblock %}
+{% block content %}
+
+<!-- ═══ Header Bar ═══ -->
+<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; padding:1.5rem 0 0.5rem;">
+  <div>
+    <h4 style="margin-bottom:0.2rem; font-size:1.6rem;">
+      Welcome back, <span style="color:var(--accent-cyan);">{{ g.user['username'] }}</span>
+    </h4>
+    <p style="color:var(--text-dim); font-size:0.8rem; font-family:'Space Mono',monospace; margin:0;">
+      // your encrypted vault
+    </p>
+  </div>
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+    <span class="stat-pill">📁 {{ files|length }} file{{ 's' if files|length != 1 }}</span>
+    <span class="stat-pill">🔗 {{ received|length }} shared with you</span>
+  </div>
+</div>
+
+<!-- ═══ Upload Zone ═══ -->
+<div class="card mt-3 mb-4" id="upload-card">
+  <div class="card-body">
+    <div class="section-title">Encrypt &amp; Upload</div>
+    <form method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data"
+          class="row g-3 align-items-end" id="upload-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-8">
+        <label class="form-label" for="upload-file">Select file <span style="color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0;">(max 16 MB)</span></label>
+        <input type="file" name="file" class="form-control" id="upload-file" required>
+      </div>
+      <div class="col-md-4">
+        <button class="btn btn-dark w-100" type="submit" id="upload-btn"
+                style="padding:0.65rem; font-size:0.88rem;">
+          🔒 Encrypt &amp; Upload
+        </button>
+      </div>
+    </form>
+    <div class="info-hint mt-3">
+      🛡 Files are encrypted with AES-256-GCM before storage. The key is wrapped with your RSA-3072 public key. Zero plaintext ever hits disk.
+    </div>
+  </div>
+</div>
+
+<!-- ═══ My Files Table ═══ -->
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+  <div class="section-title" style="margin-bottom:0; border:none; padding:0;">My Files</div>
+</div>
+
+<div class="card mb-4">
+  <div class="table-responsive">
+    <table class="table" aria-label="My uploaded files">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Size</th>
+          <th>Uploaded (UTC)</th>
+          <th>Shared with</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for f in files %}
+        <tr>
+          <td>
+            <span class="file-name" title="{{ f['original_name'] }}">
+              <span style="margin-right:6px; opacity:0.5;">{{ '📄' }}</span>{{ f['original_name'] }}
+            </span>
+          </td>
+          <td>
+            <span style="font-family:'Space Mono',monospace; font-size:0.78rem; color:var(--text-muted);">
+              {{ f['size']|size }}
+            </span>
+          </td>
+          <td>
+            <span style="font-family:'Space Mono',monospace; font-size:0.75rem; color:var(--text-dim);">
+              {{ f['created_at'][:19] if f['created_at'] else '—' }}
+            </span>
+          </td>
+          <td>
+            {% for s in by_file.get(f['id'], []) %}
+              {% set st = share_status(s) %}
+              <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.25rem;">
+                <span style="font-size:0.8rem; color:var(--text-muted);">{{ s['recipient'] }}</span>
+                <span class="badge text-bg-{{ 'success' if st == 'active' else 'secondary' }}">{{ st }}</span>
+                {% if s['max_downloads'] %}
+                  <span style="font-size:0.72rem; color:var(--text-dim); font-family:'Space Mono',monospace;">
+                    {{ s['downloads'] }}/{{ s['max_downloads'] }}dl
+                  </span>
+                {% endif %}
+                {% if s['expires_at'] %}
+                  <span style="font-size:0.72rem; color:var(--text-dim); font-family:'Space Mono',monospace;">
+                    exp {{ s['expires_at'][:10] }}
+                  </span>
+                {% endif %}
+                {% if not s['revoked'] %}
+                  <form method="post" action="{{ url_for('revoke', share_id=s['id']) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-link btn-sm p-0 text-danger">revoke</button>
+                  </form>
+                {% endif %}
+              </div>
+            {% else %}
+              <span style="color:var(--text-dim); font-size:0.8rem;">—</span>
+            {% endfor %}
+          </td>
+          <td class="text-end text-nowrap">
+            <div style="display:flex; gap:0.4rem; justify-content:flex-end; flex-wrap:wrap;">
+              <a class="btn btn-sm btn-outline-dark"
+                 href="{{ url_for('download', file_id=f['id']) }}"
+                 title="Download">⬇ Download</a>
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{{ url_for('share', file_id=f['id']) }}"
+                 title="Share">↗ Share</a>
+              <form method="post" action="{{ url_for('delete', file_id=f['id']) }}" class="d-inline"
+                    onsubmit="return confirm('Delete \'{{ f['original_name'] }}\'? This cannot be undone.')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger" title="Delete">✕</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="5" class="text-center text-muted py-4">
+            <div style="padding:2rem 0;">
+              <div style="font-size:2.5rem; margin-bottom:0.75rem; opacity:0.3;">🗂</div>
+              <div>No files yet — upload your first encrypted file above.</div>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ Shared With Me ═══ -->
+<div class="section-title" style="margin-top:2rem;">Shared with Me</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table" aria-label="Files shared with me">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>From</th>
+          <th>Size</th>
+          <th>Limits</th>
+          <th>Status</th>
+          <th class="text-end">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for s in received %}
+        {% set st = share_status(s) %}
+        <tr style="opacity:{{ '1' if st == 'active' else '0.55' }}">
+          <td>
+            <span class="file-name" title="{{ s['original_name'] }}">
+              <span style="margin-right:6px; opacity:0.5;">📄</span>{{ s['original_name'] }}
+            </span>
+          </td>
+          <td>
+            <span style="font-size:0.8rem; color:var(--text-muted);">{{ s['owner'] }}</span>
+          </td>
+          <td>
+            <span style="font-family:'Space Mono',monospace; font-size:0.78rem; color:var(--text-muted);">
+              {{ s['size']|size }}
+            </span>
+          </td>
+          <td>
+            <span style="font-size:0.75rem; color:var(--text-dim); font-family:'Space Mono',monospace; line-height:1.6;">
+              {% if s['max_downloads'] %}{{ s['downloads'] }}/{{ s['max_downloads'] }} dl<br>{% endif %}
+              {% if s['expires_at'] %}exp {{ s['expires_at'][:10] }}{% endif %}
+              {% if not s['max_downloads'] and not s['expires_at'] %}none{% endif %}
+            </span>
+          </td>
+          <td>
+            <span class="badge text-bg-{{ 'success' if st == 'active' else 'secondary' }}">{{ st }}</span>
+          </td>
+          <td class="text-end">
+            {% if st == 'active' %}
+              <a class="btn btn-sm btn-outline-dark"
+                 href="{{ url_for('download', file_id=s['file_id']) }}">⬇ Download</a>
+            {% else %}
+              <span style="font-size:0.75rem; color:var(--text-dim);">unavailable</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-4">
+            <div style="padding:2rem 0;">
+              <div style="font-size:2.5rem; margin-bottom:0.75rem; opacity:0.3;">📭</div>
+              <div>Nothing shared with you yet.</div>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

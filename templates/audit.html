@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — SecureShare{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
+            gap:1rem; padding:1.5rem 0 1rem;">
+  <div>
+    <h4 style="margin-bottom:0.2rem; font-size:1.6rem;">Audit Log</h4>
+    <p style="color:var(--text-dim); font-size:0.78rem; font-family:'Space Mono',monospace; margin:0;">
+      // latest 300 events · tamper-evident hash chain
+    </p>
+  </div>
+
+  {% if chain_ok is not none %}
+    {% if chain_ok %}
+      <div class="chain-ok">
+        <span>✓</span> Hash chain verified
+      </div>
+    {% else %}
+      <div class="chain-bad">
+        <span>⚠</span> Tampering detected at entry #{{ bad_id }}
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-sm" aria-label="Audit log entries">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Time (UTC)</th>
+          <th>User</th>
+          <th>Action</th>
+          <th>Target</th>
+          <th>Result</th>
+          <th>IP</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr style="opacity:{{ '1' if r['success'] else '0.7' }}">
+          <td style="font-family:'Space Mono',monospace; font-size:0.72rem; color:var(--text-dim);">
+            {{ r['id'] }}
+          </td>
+          <td style="font-family:'Space Mono',monospace; font-size:0.72rem; color:var(--text-dim); white-space:nowrap;">
+            {{ r['ts'][:19] if r['ts'] else '' }}
+          </td>
+          <td style="font-size:0.8rem; color:var(--text-muted);">
+            {{ r['username'] or '—' }}
+          </td>
+          <td>
+            <span style="font-family:'Space Mono',monospace; font-size:0.75rem;
+                         color:{{ 'var(--accent-cyan)' if r['success'] else 'var(--accent-red)' }};">
+              {{ r['action'] }}
+            </span>
+          </td>
+          <td style="font-size:0.78rem; color:var(--text-muted); font-family:'Space Mono',monospace;">
+            {{ r['target'] or '' }}
+          </td>
+          <td>
+            <span class="badge text-bg-{{ 'success' if r['success'] else 'danger' }}">
+              {{ 'OK' if r['success'] else 'FAIL' }}
+            </span>
+          </td>
+          <td style="font-family:'Space Mono',monospace; font-size:0.72rem; color:var(--text-dim);">
+            {{ r['ip'] or '' }}
+          </td>
+          <td style="font-size:0.75rem; color:var(--text-dim); max-width:200px;
+                     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+              title="{{ r['details'] or '' }}">
+            {{ r['details'] or '' }}
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="8" class="text-center text-muted py-4">
+            <div style="padding:2rem 0;">
+              <div style="font-size:2rem; opacity:0.3; margin-bottom:0.5rem;">📋</div>
+              No audit entries.
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

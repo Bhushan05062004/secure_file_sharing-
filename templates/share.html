@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Share File — SecureShare{% endblock %}
+{% block content %}
+
+<div style="min-height:calc(100vh - 160px); display:flex; align-items:center; justify-content:center; padding:2rem 1rem;">
+  <div style="width:100%; max-width:520px;">
+
+    <!-- Back link -->
+    <a href="{{ url_for('dashboard') }}"
+       style="display:inline-flex; align-items:center; gap:0.4rem; color:var(--text-dim);
+              font-size:0.8rem; font-family:'Space Mono',monospace; margin-bottom:1.5rem;
+              transition:color 0.2s;"
+       onmouseenter="this.style.color='var(--accent-cyan)'"
+       onmouseleave="this.style.color='var(--text-dim)'">
+      ← back to dashboard
+    </a>
+
+    <div class="card">
+      <div class="card-body">
+
+        <h4 style="margin-bottom:0.25rem;">Share File</h4>
+        <p style="color:var(--text-dim); font-size:0.8rem; font-family:'Space Mono',monospace; margin-bottom:1.5rem;">
+          // {{ f['original_name'] }}
+        </p>
+
+        <!-- Crypto explanation -->
+        <div class="info-hint" style="margin-bottom:1.5rem;">
+          🔑 The file's AES key is decrypted with your private RSA key, then re-encrypted
+          with the recipient's RSA public key. The encrypted file itself is never re-exposed.
+        </div>
+
+        <form method="post" id="share-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="mb-3">
+            <label class="form-label" for="recipient">Recipient Username</label>
+            <input id="recipient" name="recipient" class="form-control" required
+                   placeholder="their_username" autocomplete="off">
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-sm-6">
+              <label class="form-label" for="expiry_hours">Expires after (hours)</label>
+              <input id="expiry_hours" name="expiry_hours" type="number"
+                     min="1" max="8760" class="form-control" placeholder="optional">
+              <div class="form-text">Max 8760 h (1 year)</div>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="max_downloads">Max Downloads</label>
+              <input id="max_downloads" name="max_downloads" type="number"
+                     min="1" max="1000" class="form-control" placeholder="optional">
+              <div class="form-text">Max 1000</div>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+            <button class="btn btn-dark" type="submit" id="share-btn"
+                    style="padding:0.7rem 2rem; flex:1; min-width:140px;">
+              ↗ Share Securely
+            </button>
+            <a class="btn btn-outline-dark" href="{{ url_for('dashboard') }}"
+               style="padding:0.7rem 1.5rem;">
+              Cancel
+            </a>
+          </div>
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  document.getElementById('share-form').addEventListener('submit', function() {
+    const btn = document.getElementById('share-btn');
+    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 0.8s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Wrapping Key...</span>';
+    btn.disabled = true;
+    const st = document.createElement('style');
+    st.textContent = '@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
+    document.head.appendChild(st);
+  });
+</script>
+{% endblock %}

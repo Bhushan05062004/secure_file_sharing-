@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} — SecureShare{% endblock %}
+{% block content %}
+
+<div class="error-wrapper" style="padding:5rem 1rem; text-align:center; min-height:calc(100vh - 160px); display:flex; flex-direction:column; align-items:center; justify-content:center;">
+
+  <!-- Glowing orb behind number -->
+  <div style="position:relative; display:inline-block; margin-bottom:1.5rem;">
+    <div style="position:absolute; inset:-30px; border-radius:50%;
+                background:radial-gradient(circle, rgba(255,51,102,0.12) 0%, transparent 70%);
+                animation:orb-pulse 3s ease-in-out infinite;"></div>
+    <div class="error-code">{{ code }}</div>
+  </div>
+
+  <p style="color:var(--text-muted); font-size:1.1rem; max-width:420px; margin:0 auto 2rem; line-height:1.7;">
+    {{ message }}
+  </p>
+
+  <a class="btn btn-dark" href="{{ url_for('index') }}"
+     style="padding:0.75rem 2.5rem; font-size:0.95rem; letter-spacing:0.06em;">
+    ← Return Home
+  </a>
+
+  <div style="margin-top:3rem; font-family:'Space Mono',monospace; font-size:0.72rem;
+              color:var(--text-dim); letter-spacing:0.08em;">
+    SecureShare // encrypted file transfer
+  </div>
+</div>
+
+<style>
+  @keyframes orb-pulse {
+    0%, 100% { transform: scale(1);   opacity: 0.7; }
+    50%       { transform: scale(1.2); opacity: 1; }
+  }
+</style>
+{% endblock %}
