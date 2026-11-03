@@ -12,23 +12,27 @@ CREATE TABLE IF NOT EXISTS users (
     enc_private_key TEXT NOT NULL,
     failed_attempts INTEGER NOT NULL DEFAULT 0,
     locked_until TEXT,
+    session_nonce TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
+
 CREATE TABLE IF NOT EXISTS files (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     original_name TEXT NOT NULL,
     stored_name TEXT UNIQUE NOT NULL,
     size INTEGER NOT NULL,
-    sha256 TEXT NOT NULL,
+    content_hmac TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS file_keys (          -- RSA-wrapped AES key per user
+
+CREATE TABLE IF NOT EXISTS file_keys (
     file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     wrapped_key BLOB NOT NULL,
     PRIMARY KEY (file_id, user_id)
 );
+
 CREATE TABLE IF NOT EXISTS shares (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -39,6 +43,7 @@ CREATE TABLE IF NOT EXISTS shares (
     revoked INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
+
 CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,
@@ -52,13 +57,28 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     prev_hash TEXT NOT NULL,
     entry_hash TEXT NOT NULL
 );
+
+-- Performance & Integrity Indexes
+CREATE INDEX IF NOT EXISTS idx_files_owner ON files(owner_id);
+CREATE INDEX IF NOT EXISTS idx_shares_file ON shares(file_id);
+CREATE INDEX IF NOT EXISTS idx_shares_recipient ON shares(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_shares_active ON shares(file_id, recipient_id, revoked);
+CREATE INDEX IF NOT EXISTS idx_shares_expiry ON shares(expires_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_ts ON audit_logs(ts);
 """
 
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(current_app.config["DATABASE"])
+        g.db = sqlite3.connect(
+            current_app.config["DATABASE"],
+            timeout=10.0,
+            isolation_level=None  # autocommit mode; explicit BEGIN / BEGIN IMMEDIATE as needed
+        )
         g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA journal_mode=WAL")
+        g.db.execute("PRAGMA synchronous=NORMAL")
         g.db.execute("PRAGMA foreign_keys=ON")
     return g.db
 
@@ -72,4 +92,12 @@ def close_db(_=None):
 def init_db():
     d = get_db()
     d.executescript(SCHEMA)
-    d.commit()
+
+    # Safe column migrations for existing databases
+    user_cols = [r["name"] for r in d.execute("PRAGMA table_info(users)").fetchall()]
+    if "session_nonce" not in user_cols:
+        d.execute("ALTER TABLE users ADD COLUMN session_nonce TEXT NOT NULL DEFAULT ''")
+
+    file_cols = [r["name"] for r in d.execute("PRAGMA table_info(files)").fetchall()]
+    if "content_hmac" not in file_cols:
+        d.execute("ALTER TABLE files ADD COLUMN content_hmac TEXT NOT NULL DEFAULT ''")

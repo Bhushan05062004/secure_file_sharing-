@@ -40,10 +40,21 @@ class Client:
 
 class Base(unittest.TestCase):
     def setUp(self):
+        from blueprints.auth import _IP_FAILURES, _IP_LOCK
+        with _IP_LOCK:
+            _IP_FAILURES.clear()
+
         self.tmp = tempfile.mkdtemp()
-        self.app = create_app({"TESTING": True, "RSA_BITS": 2048, "SECRET_KEY": "t",
-                                "DATABASE": os.path.join(self.tmp, "t.db"),
-                                "STORAGE_DIR": os.path.join(self.tmp, "st")})
+        self.app = create_app({
+            "TESTING": True,
+            "RSA_BITS": 2048,
+            "SCRYPT_N": 2 ** 14,  # Fast iteration for tests
+            "SECRET_KEY": "test-key-for-unit-tests",
+            "SESSION_COOKIE_SECURE": False,
+            "AUDIT_HMAC_KEY": b"test-hmac-key-for-audit-0123456789",
+            "DATABASE": os.path.join(self.tmp, "t.db"),
+            "STORAGE_DIR": os.path.join(self.tmp, "st")
+        })
         os.makedirs(self.app.config["STORAGE_DIR"], exist_ok=True)
         with self.app.app_context():
             import db
@@ -152,7 +163,54 @@ class TestSecurity(Base):
         v = Client(self.app)
         for _ in range(5):
             v.login("alice", "wrong-password")
-        self.assertEqual(v.login("alice", PW).status_code, 429)
+        # Account is locked in DB
+        locked = self.q("SELECT locked_until FROM users WHERE username='alice'")[0][0]
+        self.assertIsNotNone(locked)
+        # Even with correct password, returns generic 401 without revealing lockout status
+        self.assertEqual(v.login("alice", PW).status_code, 401)
+
+    def test_ip_rate_limiting(self):
+        v = Client(self.app)
+        for _ in range(15):
+            v.login("unknown_user", "wrong-password")
+        # Exceeding IP rate limit returns 429
+        self.assertEqual(v.login("unknown_user", "wrong-password").status_code, 429)
+
+    def test_session_invalidation_after_logout(self):
+        # Alice uploads a file while logged in
+        self.alice.upload()
+        self.assertEqual(self.alice.c.get("/dashboard").status_code, 200)
+
+        # Alice logs out
+        self.alice.post("/logout")
+
+        # Replaying previous session should redirect to login
+        r = self.alice.c.get("/dashboard")
+        self.assertEqual(r.status_code, 302)
+
+    def test_password_change_and_key_rewrap(self):
+        # Alice uploads a file with current password
+        self.alice.upload()
+        self.assertEqual(self.alice.c.get("/download/1").status_code, 200)
+
+        NEW_PW = "NewStrongPass456"
+        # Change password
+        r = self.alice.post("/change-password", {
+            "old_password": PW,
+            "new_password": NEW_PW,
+            "confirm_password": NEW_PW
+        })
+        self.assertEqual(r.status_code, 302)
+
+        # Log in with new password
+        cl = Client(self.app)
+        r_login = cl.login("alice", NEW_PW)
+        self.assertEqual(r_login.status_code, 302)
+
+        # Alice can still decrypt and download her previously uploaded file
+        r_dl = cl.c.get("/download/1")
+        self.assertEqual(r_dl.status_code, 200)
+        self.assertEqual(r_dl.data, SECRET)
 
     def test_weak_password_rejected(self):
         c = Client(self.app)
@@ -172,7 +230,10 @@ class TestSecurity(Base):
     def test_security_headers(self):
         r = self.alice.c.get("/dashboard")
         self.assertEqual(r.headers["X-Frame-Options"], "DENY")
-        self.assertIn("Content-Security-Policy", r.headers)
+        csp = r.headers["Content-Security-Policy"]
+        self.assertIn("object-src 'none'", csp)
+        self.assertIn("base-uri 'none'", csp)
+        self.assertIn("form-action 'self'", csp)
 
 
 if __name__ == "__main__":

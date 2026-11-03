@@ -3,7 +3,7 @@
 {% block content %}
 
 <div class="auth-wrapper">
-  <div class="auth-card" style="max-width:480px;">
+  <div class="auth-card auth-card-wide">
     <div class="auth-card-inner">
 
       <!-- Logo -->
@@ -17,7 +17,7 @@
       <div class="card">
         <div class="card-body">
 
-          <h4 style="text-align:center; margin-bottom:1.5rem;">Create Account</h4>
+          <h4 class="auth-header">Create Account</h4>
 
           <form method="post" id="reg-form" novalidate>
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -38,54 +38,48 @@
 
             <div class="mb-3">
               <label class="form-label" for="r-pw">Password</label>
-              <div style="position:relative;">
-                <input id="r-pw" name="password" type="password" class="form-control"
+              <div class="input-pw-wrapper">
+                <input id="r-pw" name="password" type="password" class="form-control input-pw"
                        required minlength="10" autocomplete="new-password"
-                       placeholder="••••••••••••" style="padding-right:3rem;"
-                       oninput="checkStrength(this.value)">
-                <button type="button"
-                  style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);
-                         background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;"
-                  onclick="togglePw('r-pw',this)" aria-label="Toggle">👁</button>
+                       placeholder="••••••••••••">
+                <button type="button" class="btn-toggle-pw"
+                  data-toggle-password="r-pw" aria-label="Toggle password visibility">👁</button>
               </div>
               <!-- Password strength bar -->
-              <div style="margin-top:0.5rem; height:3px; border-radius:3px; background:var(--border-subtle); overflow:hidden;">
-                <div id="pw-bar" style="height:100%;width:0;border-radius:3px;transition:width 0.4s ease,background 0.4s ease;"></div>
+              <div class="pw-strength-bar">
+                <div id="pw-bar" class="pw-bar-inner"></div>
               </div>
               <div class="form-text" id="pw-hint">10+ chars with upper-case, lower-case &amp; a digit</div>
             </div>
 
             <div class="mb-4">
               <label class="form-label" for="r-confirm">Confirm Password</label>
-              <div style="position:relative;">
-                <input id="r-confirm" name="confirm" type="password" class="form-control"
+              <div class="input-pw-wrapper">
+                <input id="r-confirm" name="confirm" type="password" class="form-control input-pw"
                        required autocomplete="new-password"
-                       placeholder="••••••••••••" style="padding-right:3rem;">
-                <button type="button"
-                  style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);
-                         background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;"
-                  onclick="togglePw('r-confirm',this)" aria-label="Toggle">👁</button>
+                       placeholder="••••••••••••">
+                <button type="button" class="btn-toggle-pw"
+                  data-toggle-password="r-confirm" aria-label="Toggle password visibility">👁</button>
               </div>
             </div>
 
-            <button class="btn btn-dark w-100" type="submit" id="reg-btn"
-                    style="padding:0.75rem; font-size:0.95rem; letter-spacing:0.06em;">
+            <button class="btn btn-dark w-100 auth-submit-btn" type="submit" id="reg-btn">
               Create Account &amp; Generate Keys
             </button>
           </form>
 
-          <div style="margin-top:1.25rem; text-align:center; border-top:1px solid var(--border-subtle); padding-top:1.25rem;">
-            <p class="small" style="color:var(--text-dim); margin:0;">
+          <div class="auth-footer">
+            <p class="small auth-footer-text">
               Already have an account?
-              <a href="{{ url_for('login') }}" style="color:var(--accent-cyan); font-weight:600;">Sign in →</a>
+              <a href="{{ url_for('login') }}" class="auth-link-cyan">Sign in →</a>
             </p>
           </div>
         </div>
       </div>
 
-      <div class="info-hint" style="margin-top:1rem;">
-        ⚠️ An RSA-3072 key pair is generated on sign-up. Your private key is encrypted
-        with a key derived from your password — <strong style="color:#fbbf24;">if you forget
+      <div class="info-hint info-hint-center">
+        ⚠️ An RSA key pair is generated on sign-up. Your private key is encrypted
+        with a key derived from your password via scrypt — <strong class="warning-gold">if you forget
         your password, files cannot be recovered.</strong>
       </div>
 
@@ -93,41 +87,4 @@
   </div>
 </div>
 
-<script>
-  function togglePw(id, btn) {
-    const el = document.getElementById(id);
-    const hidden = el.type === 'password';
-    el.type = hidden ? 'text' : 'password';
-    btn.textContent = hidden ? '🙈' : '👁';
-  }
-
-  function checkStrength(pw) {
-    const bar = document.getElementById('pw-bar');
-    const hint = document.getElementById('pw-hint');
-    let score = 0;
-    if (pw.length >= 10) score++;
-    if (/[A-Z]/.test(pw)) score++;
-    if (/[a-z]/.test(pw)) score++;
-    if (/\d/.test(pw)) score++;
-    if (/[^A-Za-z0-9]/.test(pw)) score++;
-
-    const colors = ['', '#ff3366', '#ff8c00', '#fbbf24', '#00ff88', '#00f5ff'];
-    const labels = ['', 'Very weak', 'Weak', 'Fair', 'Strong', 'Very strong'];
-    const widths = ['0%', '20%', '40%', '60%', '80%', '100%'];
-
-    bar.style.width = widths[score];
-    bar.style.background = colors[score];
-    hint.textContent = score > 0 ? labels[score] : '10+ chars with upper-case, lower-case & a digit';
-    hint.style.color = score >= 4 ? 'var(--accent-green)' : score >= 2 ? '#fbbf24' : 'var(--text-dim)';
-  }
-
-  document.getElementById('reg-form').addEventListener('submit', function() {
-    const btn = document.getElementById('reg-btn');
-    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 0.8s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Generating RSA Keys...</span>';
-    btn.disabled = true;
-    const st = document.createElement('style');
-    st.textContent = '@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
-    document.head.appendChild(st);
-  });
-</script>
 {% endblock %}

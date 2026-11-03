@@ -17,7 +17,7 @@
       <div class="card">
         <div class="card-body">
 
-          <h4 style="text-align:center; margin-bottom:1.5rem;">Welcome back</h4>
+          <h4 class="auth-header">Welcome back</h4>
 
           <form method="post" id="login-form" novalidate>
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -34,35 +34,29 @@
 
             <div class="mb-4">
               <label class="form-label" for="password">Password</label>
-              <div style="position:relative;">
+              <div class="input-pw-wrapper">
                 <input
                   id="password" name="password" type="password"
-                  class="form-control" required
+                  class="form-control input-pw" required
                   autocomplete="current-password"
                   placeholder="••••••••••••"
-                  style="padding-right:3rem;"
                 >
-                <button type="button" id="toggle-pw"
-                  style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);
-                         background:none;border:none;color:var(--text-dim);cursor:pointer;
-                         font-size:1rem;padding:0;transition:color 0.2s;"
+                <button type="button" class="btn-toggle-pw"
+                  data-toggle-password="password"
                   aria-label="Toggle password visibility"
-                  onmouseenter="this.style.color='var(--accent-cyan)'"
-                  onmouseleave="this.style.color='var(--text-dim)'"
                 >👁</button>
               </div>
             </div>
 
-            <button class="btn btn-dark w-100" type="submit" id="login-btn"
-                    style="padding:0.75rem; font-size:0.95rem; letter-spacing:0.06em;">
+            <button class="btn btn-dark w-100 auth-submit-btn" type="submit" id="login-btn">
               Sign In
             </button>
           </form>
 
-          <div style="margin-top:1.5rem; text-align:center; border-top:1px solid var(--border-subtle); padding-top:1.25rem;">
-            <p class="small" style="color:var(--text-dim); margin:0;">
+          <div class="auth-footer">
+            <p class="small auth-footer-text">
               No account?
-              <a href="{{ url_for('register') }}" style="color:var(--accent-cyan); font-weight:600;">
+              <a href="{{ url_for('register') }}" class="auth-link-cyan">
                 Create one →
               </a>
             </p>
@@ -72,7 +66,7 @@
       </div>
 
       <!-- Footer hint -->
-      <div class="info-hint" style="text-align:center; margin-top:1rem;">
+      <div class="info-hint info-hint-center">
         🛡 AES-256-GCM encryption · RSA-OAEP key wrapping · Zero plaintext storage
       </div>
 
@@ -80,21 +74,4 @@
   </div>
 </div>
 
-<script>
-  document.getElementById('toggle-pw').addEventListener('click', function() {
-    const pw = document.getElementById('password');
-    const isHidden = pw.type === 'password';
-    pw.type = isHidden ? 'text' : 'password';
-    this.textContent = isHidden ? '🙈' : '👁';
-  });
-
-  document.getElementById('login-form').addEventListener('submit', function() {
-    const btn = document.getElementById('login-btn');
-    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 0.8s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Authenticating...</span>';
-    btn.disabled = true;
-    const st = document.createElement('style');
-    st.textContent = '@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
-    document.head.appendChild(st);
-  });
-</script>
 {% endblock %}

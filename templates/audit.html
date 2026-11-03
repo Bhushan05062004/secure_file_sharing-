@@ -3,26 +3,31 @@
 {% block content %}
 
 <!-- Header -->
-<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
-            gap:1rem; padding:1.5rem 0 1rem;">
+<div class="page-header">
   <div>
-    <h4 style="margin-bottom:0.2rem; font-size:1.6rem;">Audit Log</h4>
-    <p style="color:var(--text-dim); font-size:0.78rem; font-family:'Space Mono',monospace; margin:0;">
-      // latest 300 events · tamper-evident hash chain
+    <h4 class="page-title">Audit Log</h4>
+    <p class="page-subtitle">
+      // latest 300 events · tamper-evident HMAC chain
     </p>
   </div>
 
-  {% if chain_ok is not none %}
-    {% if chain_ok %}
-      <div class="chain-ok">
-        <span>✓</span> Hash chain verified
-      </div>
-    {% else %}
-      <div class="chain-bad">
-        <span>⚠</span> Tampering detected at entry #{{ bad_id }}
-      </div>
+  <div class="d-flex align-items-center gap-2">
+    {% if chain_ok is not none %}
+      {% if chain_ok %}
+        <div class="chain-ok">
+          <span>✓</span> Hash chain verified
+        </div>
+      {% else %}
+        <div class="chain-bad">
+          <span>⚠</span> Tampering detected at entry #{{ bad_id }}
+        </div>
+      {% endif %}
+    {% elif g.user['role'] == 'admin' %}
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('audit_view', verify=1) }}">
+        🔍 Verify Chain Integrity
+      </a>
     {% endif %}
-  {% endif %}
+  </div>
 </div>
 
 <div class="card">
@@ -42,23 +47,22 @@
       </thead>
       <tbody>
       {% for r in rows %}
-        <tr style="opacity:{{ '1' if r['success'] else '0.7' }}">
-          <td style="font-family:'Space Mono',monospace; font-size:0.72rem; color:var(--text-dim);">
+        <tr class="{{ 'opacity-100' if r['success'] else 'opacity-75' }}">
+          <td class="font-mono small text-dim">
             {{ r['id'] }}
           </td>
-          <td style="font-family:'Space Mono',monospace; font-size:0.72rem; color:var(--text-dim); white-space:nowrap;">
+          <td class="font-mono small text-dim text-nowrap">
             {{ r['ts'][:19] if r['ts'] else '' }}
           </td>
-          <td style="font-size:0.8rem; color:var(--text-muted);">
+          <td class="small text-muted">
             {{ r['username'] or '—' }}
           </td>
           <td>
-            <span style="font-family:'Space Mono',monospace; font-size:0.75rem;
-                         color:{{ 'var(--accent-cyan)' if r['success'] else 'var(--accent-red)' }};">
+            <span class="font-mono small {{ 'text-cyan' if r['success'] else 'text-danger' }}">
               {{ r['action'] }}
             </span>
           </td>
-          <td style="font-size:0.78rem; color:var(--text-muted); font-family:'Space Mono',monospace;">
+          <td class="font-mono small text-muted">
             {{ r['target'] or '' }}
           </td>
           <td>
@@ -66,21 +70,19 @@
               {{ 'OK' if r['success'] else 'FAIL' }}
             </span>
           </td>
-          <td style="font-family:'Space Mono',monospace; font-size:0.72rem; color:var(--text-dim);">
+          <td class="font-mono small text-dim">
             {{ r['ip'] or '' }}
           </td>
-          <td style="font-size:0.75rem; color:var(--text-dim); max-width:200px;
-                     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-              title="{{ r['details'] or '' }}">
+          <td class="small text-dim text-truncate" title="{{ r['details'] or '' }}">
             {{ r['details'] or '' }}
           </td>
         </tr>
       {% else %}
         <tr>
           <td colspan="8" class="text-center text-muted py-4">
-            <div style="padding:2rem 0;">
-              <div style="font-size:2rem; opacity:0.3; margin-bottom:0.5rem;">📋</div>
-              No audit entries.
+            <div class="empty-state-box">
+              <div class="empty-state-icon">📋</div>
+              <div>No audit entries.</div>
             </div>
           </td>
         </tr>

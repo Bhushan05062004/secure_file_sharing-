@@ -2,11 +2,13 @@
 {% block title %}Admin — Users — SecureShare{% endblock %}
 {% block content %}
 
-<div style="padding:1.5rem 0 1rem;">
-  <h4 style="font-size:1.6rem; margin-bottom:0.2rem;">Registered Users</h4>
-  <p style="color:var(--text-dim); font-size:0.78rem; font-family:'Space Mono',monospace; margin:0;">
-    // admin view · {{ users|length }} user{{ 's' if users|length != 1 }}
-  </p>
+<div class="page-header">
+  <div>
+    <h4 class="page-title">Registered Users</h4>
+    <p class="page-subtitle">
+      // admin view · {{ users|length }} user{{ 's' if users|length != 1 }}
+    </p>
+  </div>
 </div>
 
 <div class="card mb-3">
@@ -25,25 +27,21 @@
       <tbody>
       {% for u in users %}
         <tr>
-          <td style="font-family:'Space Mono',monospace; font-size:0.75rem; color:var(--text-dim);">
+          <td class="font-mono small text-dim">
             {{ u['id'] }}
           </td>
           <td>
-            <div style="display:flex; align-items:center; gap:0.5rem;">
-              <div style="width:28px; height:28px; border-radius:50%;
-                          background:linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
-                          display:flex; align-items:center; justify-content:center;
-                          font-size:0.7rem; font-weight:700; color:#fff; flex-shrink:0;">
+            <div class="d-flex align-items-center gap-2">
+              <div class="user-avatar-circle">
                 {{ u['username'][0].upper() }}
               </div>
-              <span style="font-weight:500; font-size:0.875rem;">{{ u['username'] }}</span>
+              <span class="fw-medium">{{ u['username'] }}</span>
             </div>
           </td>
-          <td style="font-size:0.8rem; color:var(--text-muted);">{{ u['email'] }}</td>
+          <td class="small text-muted">{{ u['email'] }}</td>
           <td>
             {% if u['role'] == 'admin' %}
-              <span class="badge" style="background:rgba(139,92,246,0.15); color:var(--accent-purple);
-                                         border:1px solid rgba(139,92,246,0.3); font-family:'Space Mono',monospace;">
+              <span class="badge admin-badge-purple">
                 ★ admin
               </span>
             {% else %}
@@ -51,11 +49,11 @@
             {% endif %}
           </td>
           <td>
-            <span style="font-family:'Space Mono',monospace; font-size:0.78rem; color:var(--text-muted);">
+            <span class="font-mono small text-muted">
               {{ u['nfiles'] }}
             </span>
           </td>
-          <td style="font-family:'Space Mono',monospace; font-size:0.72rem; color:var(--text-dim);">
+          <td class="font-mono small text-dim">
             {{ u['created_at'][:10] if u['created_at'] else '—' }}
           </td>
         </tr>
@@ -67,7 +65,7 @@
 
 <div class="info-hint">
   ℹ Admins can view all users and the global audit log, but
-  <strong style="color:#fbbf24;">cannot decrypt any other user's files</strong>
+  <strong class="warning-gold">cannot decrypt any other user's files</strong>
   — private keys are never stored in plaintext.
 </div>
 

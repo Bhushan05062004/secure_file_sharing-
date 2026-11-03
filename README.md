@@ -2,71 +2,64 @@
 
 **Student:** Bhushan Prakash Bhat (1RN25MC019) | **Guide:** Kavya NP | **Specialization:** Cyber Security
 
-A Flask web application where files are encrypted with **AES-256-GCM** before storage, and the
-per-file AES key is protected with **RSA-3072 (OAEP/SHA-256)**. It includes authentication,
-role-based access control, ownership validation, controlled sharing (expiry + download limits),
-and a tamper-evident audit log.
+A hardened Flask web application where files are encrypted with **AES-256-GCM** before storage, and the per-file AES key is protected with **RSA-3072 (OAEP/SHA-256)**. It includes strong password derivation with scrypt, role-based access control, ownership validation, controlled sharing (expiry + download limits), and an HMAC-chained audit log with external keying.
 
 ## Quick start
 ```bash
 python -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+export SECRET_KEY="your-random-production-secret-key"
 python app.py                     # http://127.0.0.1:5000
 ```
-Optional admin account: `python manage.py create-admin <username> <email>`
-Tests: `python -m unittest discover -s tests -v`  |  Benchmark: `python benchmark.py`
-Behind HTTPS set `SECURE_COOKIES=1`.
 
-## Workflow
-Login -> Upload -> AES-256-GCM encrypt -> RSA-OAEP wrap key -> Encrypted storage -> Share
-(owner's unwrapped AES key re-wrapped with recipient's public key) -> Authorization check ->
-Decrypt -> Secure download -> Audit log
+> **Note on Cookies:** `SESSION_COOKIE_SECURE` defaults to `True`. When developing locally without HTTPS, set `SECURE_COOKIES=0`.
+
+* Optional admin account: `python manage.py create-admin <username> <email>`
+* Run tests: `python -m pytest tests/ -v`
+* Benchmark crypto: `python benchmark.py`
+
+## Architecture & Workflow
+Login -> Upload -> AES-256-GCM encrypt with bound AAD -> RSA-OAEP wrap key -> Encrypted storage -> Share (owner's unwrapped AES key re-wrapped with recipient's public key) -> Authorization check -> Decrypt -> Secure download -> HMAC Audit log
 
 ## Project structure
-| File | Purpose |
+| File / Directory | Purpose |
 |---|---|
-| `app.py` | Flask app: routes, auth, sessions, CSRF, security headers, sharing logic |
-| `crypto_utils.py` | AES-GCM, RSA-OAEP, scrypt-protected private keys |
-| `db.py` | SQLite schema (users, files, file_keys, shares, audit_logs) |
-| `audit.py` | Hash-chained audit log and verification |
-| `services.py` | Registration validation, user + key-pair creation |
-| `manage.py` | Create admin user (CLI) |
-| `benchmark.py` | Encryption/decryption performance evaluation (CSV output) |
-| `tests/test_app.py` | 14 security & access-control test cases |
-| `templates/`, `static/` | Bootstrap UI |
+| `app.py` | Flask application factory, ProxyFix, middleware, keystore, security headers |
+| `blueprints/auth.py` | Registration, login rate limiting, atomic lockout, session nonce rotation, password change |
+| `blueprints/files.py` | Dashboard, file upload with bound GCM AAD, downloads, sharing, deletion |
+| `blueprints/admin.py` | Admin views: registered users, on-demand HMAC audit chain verification |
+| `crypto_utils.py` | AES-256-GCM (bound AAD), RSA-OAEP, scrypt key derivation (n=2¹⁷, min 2048-bit RSA) |
+| `db.py` | SQLite schema with WAL mode, foreign keys, and performance indexes |
+| `audit.py` | HMAC-SHA256 chained audit log (external key, `BEGIN IMMEDIATE` concurrency safety) |
+| `services.py` | User registration, password change key re-encryption, expired share cleanup |
+| `manage.py` | CLI admin creation with uniqueness validation |
+| `benchmark.py` | AES-GCM vs RSA performance evaluation (CSV output) |
+| `tests/test_app.py` | Comprehensive test suite covering authentication, crypto, and access controls |
+| `templates/`, `static/` | Strict CSP-compliant UI (no inline `<script>` or `style="..."` attributes) |
 
-## Key design
-* **Each user has an RSA key pair.** The public key is stored; the private key is stored only
-  encrypted (AES-GCM, key derived from the password via scrypt). It is unlocked at login and
-  held in server memory for the session only.
-* **Each file gets a fresh random AES-256 key** and nonce. The stored blob is
-  `nonce || ciphertext || tag`; the stored filename is a random UUID and is bound as AAD.
-* **`file_keys` table** holds one RSA-wrapped AES key per authorised user. Sharing adds a row;
-  revoking deletes it. The file is never re-encrypted.
-* **Zero-knowledge for admins:** admins can see users and the global audit log but cannot
-  decrypt anyone's files (no private key access).
+## Trust Model & Design Clarifications
+* **Zero Plaintext at Rest:** Files are encrypted with random 256-bit AES keys and authenticated nonces before touching disk. User private keys are protected with scrypt (`n=131072`) and AES-256-GCM.
+* **Server-Assisted Envelope Decryption (Not Client Zero-Knowledge):** The server temporarily decrypts the user's RSA private key into process memory during authenticated sessions to re-wrap file keys and serve downloads. Admins have no database or disk access to plaintext files or keys.
+* **Session Invalidation:** Every user record stores an atomic `session_nonce`. On logout or password change, this nonce is regenerated, immediately invalidating copied or replayed session cookies.
+* **Tamper-Evident Audit Chain:** Audit rows are chained via HMAC-SHA256 under a key stored outside the database (`instance/audit.key`), preventing offline chain modification.
 
-## Security controls (objective mapping)
-| Objective | Implementation |
+## Security Controls
+| Control | Implementation |
 |---|---|
-| AES-256 file encryption | `crypto_utils.encrypt_bytes` (GCM = confidentiality + integrity) |
-| RSA key protection | `wrap_key` / `unwrap_key`, OAEP-SHA256 |
-| Authentication | Werkzeug salted password hashes, password policy, generic errors, timing equalisation |
-| Brute-force defence | Account lockout: 5 failures -> 15 min |
-| RBAC + ownership | `user`/`admin` roles; owner-only share/revoke/delete; 403 + audit on violation |
-| Sharing restrictions | Expiry hours, max downloads (enforced atomically in SQL), revoke |
-| Audit logging | Uploads, downloads, shares, revokes, logins, failed access; SHA-256 hash chain |
-| Web hardening | CSRF tokens, HttpOnly/SameSite cookies, CSP, X-Frame-Options, nosniff, 30-min sessions, 16 MB limit, `secure_filename`, parameterised SQL, auto-escaped templates |
-| Tamper detection | GCM tag failure -> download refused and logged |
+| AES-256 File Encryption | `AESGCM(256)` with AAD bound to `owner_id` and `stored_name` |
+| RSA Key Protection | RSA-OAEP with SHA-256, minimum 2048-bit key size enforced |
+| Key Derivation | Scrypt with `n=2**17` (131,072), `r=8`, `p=1` |
+| Authentication Hardening | Salted password hashes, atomic SQL failed-attempt counter, uniform 401 error message (no user-enumeration or lockout leakage) |
+| Rate Limiting | Sliding-window per-IP rate limiting (429 on abuse) |
+| Web Hardening | Strict CSP (`object-src 'none'`, `base-uri 'none'`, `form-action 'self'`, no inline scripts/styles), HSTS, nosniff, DENY framing, HttpOnly/SameSite cookies, Werkzeug ProxyFix |
+| Database Integrity | SQLite WAL mode, foreign key cascade, index acceleration, `BEGIN IMMEDIATE` for audit writes |
+| Share Lifecycle | Download quotas, expiration dates, immediate key deletion on revoke or expiration |
 
-## Limitations (mention in viva)
-* Private keys are unlocked in memory of a single server process; a restart requires re-login.
-  Multi-worker deployment would need a shared secure key cache.
-* Forgotten password = unrecoverable files (by design; no key escrow).
-* No password-change / MFA / email verification (future work).
-* Whole files are processed in memory (16 MB cap); chunked streaming would be needed for large files.
-* SQLite for the prototype; the SQL is standard and can move to MySQL.
+## Deployment Considerations
+* **Multi-Worker WSGI:** The in-memory keystore (`_KEYSTORE`) holds unlocked private keys per session within process memory. Deployments running multiple worker processes (e.g., Gunicorn or uWSGI) must use **sticky sessions (session affinity)** or externalize session keys to a secure cache (e.g., Redis with mTLS and KMS envelope encryption).
+* **Reverse Proxy:** The app uses `ProxyFix(x_for=1, x_proto=1, x_host=1, x_prefix=1)` to safely read client IP addresses behind Nginx, Caddy, or cloud load balancers.
+* **Key Recovery:** If a user loses their password, their encrypted files cannot be decrypted (by design; no key escrow backdoor).
 
-## Future work
-Key escrow/rotation, MFA, chunked encryption, cloud object storage, anomaly detection on audit logs.
+## License
+MIT License - see [LICENSE](LICENSE).
