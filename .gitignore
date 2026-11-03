@@ -2,3 +2,4 @@ venv/
 __pycache__/
 instance/
 *.pyc
+.pytest_cache/

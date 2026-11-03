@@ -39,10 +39,10 @@ def main():
         rows.append([label, n, round(enc, 3), round(dec, 3), round(thr, 1),
                      round(wrap_ms, 3), round(unwrap_ms, 3)])
     with open("benchmark_results.csv", "w", newline="") as fh:
-        w = csv.writer(fh)
-        w.writerow(["size", "bytes", "aes_encrypt_ms", "aes_decrypt_ms", "aes_MBps",
-                    "rsa_wrap_ms", "rsa_unwrap_ms"])
-        w.writerows(rows)
+        writer = csv.writer(fh)
+        writer.writerow(["size", "bytes", "aes_encrypt_ms", "aes_decrypt_ms", "aes_MBps",
+                         "rsa_wrap_ms", "rsa_unwrap_ms"])
+        writer.writerows(rows)
     print("\nSaved benchmark_results.csv")
 
 

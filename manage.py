@@ -1,5 +1,6 @@
 """Usage:  python manage.py create-admin <username> <email>"""
 import getpass
+import sqlite3
 import sys
 
 import services
@@ -15,8 +16,11 @@ def main():
     if errs:
         sys.exit("\n".join(errs))
     app = create_app()
-    with app.app_context():
-        services.create_user(username, email, pw, "admin", app.config["RSA_BITS"])
+    try:
+        with app.app_context():
+            services.create_user(username, email, pw, "admin", app.config["RSA_BITS"])
+    except sqlite3.IntegrityError:
+        sys.exit(f"Error: Username '{username}' or email '{email}' is already registered.")
     print(f"Admin '{username}' created.")
 
 

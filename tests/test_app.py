@@ -42,8 +42,8 @@ class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.app = create_app({"TESTING": True, "RSA_BITS": 2048, "SECRET_KEY": "t",
-                               "DATABASE": os.path.join(self.tmp, "t.db"),
-                               "STORAGE_DIR": os.path.join(self.tmp, "st")})
+                                "DATABASE": os.path.join(self.tmp, "t.db"),
+                                "STORAGE_DIR": os.path.join(self.tmp, "st")})
         os.makedirs(self.app.config["STORAGE_DIR"], exist_ok=True)
         with self.app.app_context():
             import db
@@ -70,7 +70,8 @@ class TestSecurity(Base):
         self.alice.upload()
         stored = os.listdir(self.app.config["STORAGE_DIR"])
         self.assertEqual(len(stored), 1)
-        raw = open(os.path.join(self.app.config["STORAGE_DIR"], stored[0]), "rb").read()
+        with open(os.path.join(self.app.config["STORAGE_DIR"], stored[0]), "rb") as fh:
+            raw = fh.read()
         self.assertNotIn(SECRET, raw)
         r = self.alice.c.get("/download/1")
         self.assertEqual(r.status_code, 200)
@@ -115,12 +116,26 @@ class TestSecurity(Base):
         self.assertEqual(self.eve.post("/revoke/1").status_code, 403)
         self.assertEqual(self.bob.post("/delete/1").status_code, 403)
 
+    def test_owner_can_delete_file(self):
+        self.alice.upload()
+        self.alice.post("/share/1", dict(recipient="bob"))
+        self.assertEqual(len(self.q("SELECT * FROM files WHERE id=1")), 1)
+        self.assertEqual(len(self.q("SELECT * FROM file_keys WHERE file_id=1")), 2)
+        r = self.alice.post("/delete/1")
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(len(self.q("SELECT * FROM files WHERE id=1")), 0)
+        self.assertEqual(len(self.q("SELECT * FROM file_keys WHERE file_id=1")), 0)
+        self.assertEqual(len(self.q("SELECT * FROM shares WHERE file_id=1")), 0)
+        self.assertEqual(len(os.listdir(self.app.config["STORAGE_DIR"])), 0)
+
     def test_tamper_detected(self):
         self.alice.upload()
         p = os.path.join(self.app.config["STORAGE_DIR"], os.listdir(self.app.config["STORAGE_DIR"])[0])
-        b = bytearray(open(p, "rb").read())
+        with open(p, "rb") as fh:
+            b = bytearray(fh.read())
         b[20] ^= 0xFF
-        open(p, "wb").write(bytes(b))
+        with open(p, "wb") as fh:
+            fh.write(bytes(b))
         self.assertEqual(self.alice.c.get("/download/1").status_code, 400)
 
     def test_csrf_required(self):
