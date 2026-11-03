@@ -194,3 +194,4 @@ def change_password_view():
         return redirect(url_for("files.dashboard"))
 
     return render_template("change_password.html")
+

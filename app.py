@@ -9,6 +9,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 import audit
 import db as database
+import policy
 from blueprints.admin import admin_bp
 from blueprints.auth import auth_bp
 from blueprints.files import files_bp
@@ -104,6 +105,7 @@ def create_app(test_config=None):
         "change_password_view": "auth.change_password_view",
         "audit_view": "admin.audit_view",
         "admin_users": "admin.admin_users",
+        "admin_groups": "admin.admin_groups",
     }
 
     def smart_url_for(endpoint, **values):
@@ -111,6 +113,8 @@ def create_app(test_config=None):
         return url_for(target, **values)
 
     app.jinja_env.globals["url_for"] = smart_url_for
+    app.jinja_env.globals["can"] = lambda action, resource=None: policy.can(g.user, action, resource)
+    app.can = policy.can
 
     def share_status(s):
         now = audit.now_iso()
@@ -165,6 +169,7 @@ def create_app(test_config=None):
         ("index", "files.index"),
         ("audit_view", "admin.audit_view"),
         ("admin_users", "admin.admin_users"),
+        ("admin_groups", "admin.admin_groups"),
     ]
     for alias, target in aliases:
         if target in app.view_functions:

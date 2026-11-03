@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Admin — Groups — SecureShare{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h4 class="page-title">Enterprise Groups</h4>
+    <p class="page-subtitle">
+      // IAM group-based access control · {{ groups|length }} group{{ 's' if groups|length != 1 }}
+    </p>
+  </div>
+</div>
+
+{% if can('manage_groups') %}
+<!-- Create Group Card -->
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="section-title">Create IAM Group</div>
+    <form method="post" action="{{ url_for('admin.admin_groups') }}" class="row g-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-4">
+        <label class="form-label" for="g-name">Group Name</label>
+        <input id="g-name" name="name" class="form-control" required placeholder="e.g. Finance-Auditors">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="g-desc">Description</label>
+        <input id="g-desc" name="description" class="form-control" placeholder="Purpose or department">
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-dark w-100" type="submit">
+          + Add Group
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card mb-4">
+  <div class="table-responsive">
+    <table class="table" aria-label="Enterprise groups">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Description</th>
+          <th>Members</th>
+          <th>Created (UTC)</th>
+          {% if can('manage_groups') %}
+          <th class="text-end">Manage Member</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for g in groups %}
+        <tr>
+          <td class="font-mono small text-dim">
+            {{ g['id'] }}
+          </td>
+          <td class="fw-medium text-cyan">
+            {{ g['name'] }}
+          </td>
+          <td class="small text-muted">
+            {{ g['description'] or '—' }}
+          </td>
+          <td>
+            <span class="badge text-bg-secondary font-mono">
+              {{ g['member_count'] }} member{{ 's' if g['member_count'] != 1 }}
+            </span>
+          </td>
+          <td class="font-mono small text-dim">
+            {{ g['created_at'][:10] if g['created_at'] else '—' }}
+          </td>
+          {% if can('manage_groups') %}
+          <td class="text-end">
+            <form method="post" action="{{ url_for('admin.admin_group_members', group_id=g['id']) }}" class="d-inline-flex gap-1 justify-content-end align-items-center">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="text" name="username" class="form-control form-control-sm input-sm-fixed" placeholder="username" required>
+              <button class="btn btn-sm btn-outline-primary" type="submit" name="action" value="add" title="Add User">+</button>
+              <button class="btn btn-sm btn-outline-danger" type="submit" name="action" value="remove" title="Remove User">-</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-4">
+            <div class="empty-state-box">
+              <div class="empty-state-icon">👥</div>
+              <div>No enterprise groups defined.</div>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

@@ -1244,3 +1244,7 @@ tr:has(.btn:hover) td {
   animation: ripple-go 0.5s ease forwards;
   pointer-events: none;
 }
+
+.input-sm-fixed {
+  width: 120px !important;
+}

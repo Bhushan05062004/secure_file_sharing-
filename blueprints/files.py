@@ -11,6 +11,7 @@ from werkzeug.utils import secure_filename
 import audit
 import crypto_utils as cu
 import db as database
+import policy
 import services
 
 files_bp = Blueprint("files", __name__)
@@ -30,16 +31,6 @@ def file_path(stored_name):
     return os.path.join(current_app.config["STORAGE_DIR"], stored_name)
 
 
-def owned_file_or_403(file_id):
-    f = database.get_db().execute("SELECT * FROM files WHERE id=?", (file_id,)).fetchone()
-    if f is None:
-        abort(404, "File not found.")
-    if f["owner_id"] != g.user["id"]:
-        audit.log("OWNERSHIP_VIOLATION", False, target=f"file:{file_id}", details=request.path)
-        abort(403, "Only the owner can do this.")
-    return f
-
-
 @files_bp.route("/")
 def index():
     return redirect(url_for("files.dashboard") if g.user else url_for("auth.login"))
@@ -48,6 +39,9 @@ def index():
 @files_bp.route("/dashboard")
 @login_required
 def dashboard():
+    if not policy.can(g.user, "view_dashboard"):
+        abort(403)
+
     db = database.get_db()
     services.cleanup_expired_shares(db)
 
@@ -80,6 +74,10 @@ def dashboard():
 @files_bp.route("/upload", methods=["POST"])
 @login_required
 def upload():
+    if not policy.can(g.user, "upload_file"):
+        audit.log("PERMISSION_DENIED", False, target="upload", details=f"User {g.user['username']} cannot upload")
+        abort(403, "You do not have permission to upload files.")
+
     f = request.files.get("file")
     if not f or not f.filename:
         flash("Choose a file to upload.", "warning")
@@ -139,16 +137,10 @@ def download(file_id):
         audit.log("DOWNLOAD", False, target=target, details="not found")
         abort(404, "File not found.")
 
-    share = None
-    if f["owner_id"] != g.user["id"]:
-        share = db.execute(
-            "SELECT * FROM shares WHERE file_id=? AND recipient_id=? AND revoked=0 "
-            "ORDER BY id DESC LIMIT 1",
-            (file_id, g.user["id"])
-        ).fetchone()
-        if share is None or current_app.share_status(share) != "active":
-            audit.log("DOWNLOAD", False, target=target, details="access denied")
-            abort(403, "You are not authorised to access this file.")
+    # Granular policy authorization check via can(user, 'download_file', f)
+    if not policy.can(g.user, "download_file", f):
+        audit.log("DOWNLOAD", False, target=target, details="access denied")
+        abort(403, "You are not authorised to access this file.")
 
     priv = current_app.keystore_get(session.get("sid"))
     if priv is None:
@@ -179,23 +171,30 @@ def download(file_id):
         audit.log("DOWNLOAD", False, target=target, details="integrity/decryption failure")
         abort(400, "Decryption failed: the stored file is corrupted or was tampered with.")
 
-    if share is not None:
-        # Atomically increment download count and verify limits
-        cur = db.execute(
-            "UPDATE shares SET downloads=downloads+1 WHERE id=? AND revoked=0 "
-            "AND (max_downloads IS NULL OR downloads<max_downloads) "
-            "AND (expires_at IS NULL OR expires_at>?)",
-            (share["id"], audit.now_iso())
-        )
-        if cur.rowcount == 0:
-            audit.log("DOWNLOAD", False, target=target, details="share limit reached")
-            abort(403, "This share has expired or reached its download limit.")
+    # Record share download usage if downloading via share
+    if f["owner_id"] != g.user["id"]:
+        share = db.execute(
+            "SELECT * FROM shares WHERE file_id=? AND recipient_id=? AND revoked=0 "
+            "ORDER BY id DESC LIMIT 1",
+            (file_id, g.user["id"])
+        ).fetchone()
 
-        # If share reached its max downloads, delete recipient's key immediately
-        updated = db.execute("SELECT downloads, max_downloads FROM shares WHERE id=?", (share["id"],)).fetchone()
-        if updated and updated["max_downloads"] and updated["downloads"] >= updated["max_downloads"]:
-            db.execute("UPDATE shares SET revoked=1 WHERE id=?", (share["id"],))
-            db.execute("DELETE FROM file_keys WHERE file_id=? AND user_id=?", (file_id, g.user["id"]))
+        if share:
+            cur = db.execute(
+                "UPDATE shares SET downloads=downloads+1 WHERE id=? AND revoked=0 "
+                "AND (max_downloads IS NULL OR downloads<max_downloads) "
+                "AND (expires_at IS NULL OR expires_at>?)",
+                (share["id"], audit.now_iso())
+            )
+            if cur.rowcount == 0:
+                audit.log("DOWNLOAD", False, target=target, details="share limit reached")
+                abort(403, "This share has expired or reached its download limit.")
+
+            # If quota reached, revoke share and delete recipient key
+            updated = db.execute("SELECT downloads, max_downloads FROM shares WHERE id=?", (share["id"],)).fetchone()
+            if updated and updated["max_downloads"] and updated["downloads"] >= updated["max_downloads"]:
+                db.execute("UPDATE shares SET revoked=1 WHERE id=?", (share["id"],))
+                db.execute("DELETE FROM file_keys WHERE file_id=? AND user_id=?", (file_id, g.user["id"]))
 
     audit.log("DOWNLOAD", True, target=target, details=f["original_name"])
     return send_file(
@@ -209,8 +208,15 @@ def download(file_id):
 @files_bp.route("/share/<int:file_id>", methods=["GET", "POST"])
 @login_required
 def share(file_id):
-    f = owned_file_or_403(file_id)
     db = database.get_db()
+    f = db.execute("SELECT * FROM files WHERE id=?", (file_id,)).fetchone()
+    if f is None:
+        abort(404, "File not found.")
+
+    if not policy.can(g.user, "share_file", f):
+        audit.log("OWNERSHIP_VIOLATION", False, target=f"file:{file_id}", details=request.path)
+        abort(403, "Only the file owner can share this file.")
+
     if request.method == "POST":
         rname = request.form.get("recipient", "").strip()
         recipient = db.execute("SELECT * FROM users WHERE username=?", (rname,)).fetchone()
@@ -261,14 +267,20 @@ def share(file_id):
 @login_required
 def revoke(share_id):
     db = database.get_db()
-    s = db.execute("SELECT * FROM shares WHERE id=?", (share_id,)) .fetchone()
+    s = db.execute(
+        "SELECT s.*, f.owner_id FROM shares s JOIN files f ON f.id=s.file_id WHERE s.id=?",
+        (share_id,)
+    ).fetchone()
     if s is None:
         abort(404)
-    owned_file_or_403(s["file_id"])
+
+    if not policy.can(g.user, "revoke_share", s):
+        audit.log("OWNERSHIP_VIOLATION", False, target=f"share:{share_id}", details=request.path)
+        abort(403, "You do not have permission to revoke this share.")
 
     db.execute("UPDATE shares SET revoked=1 WHERE id=?", (share_id,))
     db.execute("DELETE FROM file_keys WHERE file_id=? AND user_id=?",
-               (s["file_id"], s["recipient_id"]))  # Recipient loses the wrapped key immediately
+               (s["file_id"], s["recipient_id"]))
     audit.log("REVOKE", True, target=f"file:{s['file_id']}", details=f"share {share_id}")
     flash("Access revoked.", "info")
     return redirect(url_for("files.dashboard"))
@@ -277,13 +289,20 @@ def revoke(share_id):
 @files_bp.route("/delete/<int:file_id>", methods=["POST"])
 @login_required
 def delete(file_id):
-    f = owned_file_or_403(file_id)
+    db = database.get_db()
+    f = db.execute("SELECT * FROM files WHERE id=?", (file_id,)).fetchone()
+    if f is None:
+        abort(404, "File not found.")
+
+    if not policy.can(g.user, "delete_file", f):
+        audit.log("OWNERSHIP_VIOLATION", False, target=f"file:{file_id}", details=request.path)
+        abort(403, "Only the owner can delete this file.")
+
     try:
         os.remove(file_path(f["stored_name"]))
     except OSError:
         pass
 
-    db = database.get_db()
     db.execute("DELETE FROM files WHERE id=?", (file_id,))
     audit.log("DELETE", True, target=f"file:{file_id}", details=f["original_name"])
     flash("File deleted.", "info")

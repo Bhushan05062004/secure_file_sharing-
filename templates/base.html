@@ -46,10 +46,16 @@
            href="{{ url_for('audit_view') }}">
           <span aria-hidden="true">◈</span> Audit
         </a>
-        {% if g.user['role'] == 'admin' %}
+        {% if can('view_users') %}
           <a class="nav-link-custom{% if request.endpoint == 'admin.admin_users' or request.endpoint == 'admin_users' %} nav-active{% endif %}"
              href="{{ url_for('admin_users') }}">
             <span aria-hidden="true">◎</span> Users
+          </a>
+        {% endif %}
+        {% if can('view_groups') %}
+          <a class="nav-link-custom{% if request.endpoint == 'admin.admin_groups' or request.endpoint == 'admin_groups' %} nav-active{% endif %}"
+             href="{{ url_for('admin.admin_groups') }}">
+            <span aria-hidden="true">👥</span> Groups
           </a>
         {% endif %}
         <a class="nav-link-custom{% if request.endpoint == 'auth.change_password_view' or request.endpoint == 'change_password_view' %} nav-active{% endif %}"
@@ -57,8 +63,7 @@
           <span aria-hidden="true">⚙</span> Key/Password
         </a>
         <span class="user-badge">
-          {{ g.user['username'] }}
-          {% if g.user['role'] == 'admin' %}<span class="admin-star">★</span>{% endif %}
+          {{ g.user['username'] }} <span class="small opacity-75 font-mono">[{{ g.user['role'] }}]</span>
         </span>
         <form method="post" action="{{ url_for('logout') }}" class="m-0" id="logout-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

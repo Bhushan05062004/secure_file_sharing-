@@ -1,19 +1,35 @@
 import sqlite3
 from flask import current_app, g
 
+VALID_ROLES = ("user", "auditor", "security_admin", "compliance_officer", "it_admin")
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','admin')),
+    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'auditor', 'security_admin', 'compliance_officer', 'it_admin')),
     public_key TEXT NOT NULL,
     enc_private_key TEXT NOT NULL,
     failed_attempts INTEGER NOT NULL DEFAULT 0,
     locked_until TEXT,
     session_nonce TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    description TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS group_members (
+    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (group_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS files (
@@ -66,6 +82,8 @@ CREATE INDEX IF NOT EXISTS idx_shares_active ON shares(file_id, recipient_id, re
 CREATE INDEX IF NOT EXISTS idx_shares_expiry ON shares(expires_at);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_ts ON audit_logs(ts);
+CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id);
 """
 
 
@@ -97,6 +115,9 @@ def init_db():
     user_cols = [r["name"] for r in d.execute("PRAGMA table_info(users)").fetchall()]
     if "session_nonce" not in user_cols:
         d.execute("ALTER TABLE users ADD COLUMN session_nonce TEXT NOT NULL DEFAULT ''")
+
+    # Migrate legacy 'admin' roles to 'it_admin'
+    d.execute("UPDATE users SET role='it_admin' WHERE role='admin'")
 
     file_cols = [r["name"] for r in d.execute("PRAGMA table_info(files)").fetchall()]
     if "content_hmac" not in file_cols:
