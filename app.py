@@ -64,8 +64,12 @@ def create_app(test_config=None):
         if not os.path.exists(key_file):
             with open(key_file, "w") as fh:
                 fh.write(secrets.token_hex(32))
-            os.chmod(key_file, 0o600)
-        app.config["SECRET_KEY"] = open(key_file).read().strip()
+            try:
+                os.chmod(key_file, 0o600)
+            except OSError:
+                pass  # Windows doesn't support Unix-style permissions
+        with open(key_file) as fh:
+            app.config["SECRET_KEY"] = fh.read().strip()
 
     app.teardown_appcontext(database.close_db)
     with app.app_context():
