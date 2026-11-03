@@ -78,8 +78,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 -- Performance & Integrity Indexes
 CREATE INDEX IF NOT EXISTS idx_files_owner ON files(owner_id);
-CREATE INDEX IF NOT EXISTS idx_files_classification ON files(classification);
-CREATE INDEX IF NOT EXISTS idx_files_legal_hold ON files(legal_hold);
 CREATE INDEX IF NOT EXISTS idx_shares_file ON shares(file_id);
 CREATE INDEX IF NOT EXISTS idx_shares_recipient ON shares(recipient_id);
 CREATE INDEX IF NOT EXISTS idx_shares_active ON shares(file_id, recipient_id, revoked);
@@ -135,3 +133,6 @@ def init_db():
         d.execute("ALTER TABLE files ADD COLUMN classification TEXT NOT NULL DEFAULT 'internal'")
     if "legal_hold" not in file_cols:
         d.execute("ALTER TABLE files ADD COLUMN legal_hold INTEGER NOT NULL DEFAULT 0")
+
+    d.execute("CREATE INDEX IF NOT EXISTS idx_files_classification ON files(classification)")
+    d.execute("CREATE INDEX IF NOT EXISTS idx_files_legal_hold ON files(legal_hold)")
