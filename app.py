@@ -107,6 +107,8 @@ def create_app(test_config=None):
         "admin_users": "admin.admin_users",
         "admin_groups": "admin.admin_groups",
         "toggle_legal_hold": "files.toggle_legal_hold",
+        "switch_role": "auth.switch_role",
+        "update_user_role": "admin.update_user_role",
     }
 
     def smart_url_for(endpoint, **values):
@@ -116,6 +118,7 @@ def create_app(test_config=None):
     app.jinja_env.globals["url_for"] = smart_url_for
     app.jinja_env.globals["can"] = lambda action, resource=None: policy.can(g.user, action, resource)
     app.jinja_env.globals["CLASSIFICATIONS"] = policy.CLASSIFICATIONS
+    app.jinja_env.globals["ROLES"] = policy.ROLES
     app.can = policy.can
 
     def share_status(s):
@@ -173,6 +176,8 @@ def create_app(test_config=None):
         ("admin_users", "admin.admin_users"),
         ("admin_groups", "admin.admin_groups"),
         ("toggle_legal_hold", "files.toggle_legal_hold"),
+        ("switch_role", "auth.switch_role"),
+        ("update_user_role", "admin.update_user_role"),
     ]
     for alias, target in aliases:
         if target in app.view_functions:

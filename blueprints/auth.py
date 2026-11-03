@@ -11,6 +11,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import audit
 import crypto_utils as cu
 import db as database
+import policy
 import services
 
 auth_bp = Blueprint("auth", __name__)
@@ -51,10 +52,13 @@ def register():
         u = request.form.get("username", "").strip()
         e = request.form.get("email", "").strip()
         p = request.form.get("password", "")
+        role = request.form.get("role", "user").strip()
+        if role not in policy.ROLES:
+            role = "user"
         errs = services.validate_registration(u, e, p, request.form.get("confirm", ""))
         if not errs:
             try:
-                services.create_user(u, e, p, "user", current_app.config["RSA_BITS"])
+                services.create_user(u, e, p, role, current_app.config["RSA_BITS"])
             except sqlite3.IntegrityError:
                 errs.append("Username or email is already registered.")
         if errs:
@@ -62,10 +66,26 @@ def register():
                 flash(m, "danger")
             audit.log("REGISTER", False, username=u)
             return render_template("register.html"), 400
-        audit.log("REGISTER", True, username=u)
+        audit.log("REGISTER", True, username=u, details=f"role: {role}")
         flash("Account created. Please log in.", "success")
         return redirect(url_for("auth.login"))
     return render_template("register.html")
+
+
+@auth_bp.route("/switch-role", methods=["POST"])
+def switch_role():
+    if g.user is None:
+        abort(401)
+    new_role = request.form.get("role", "").strip()
+    if new_role not in policy.ROLES:
+        flash("Invalid role.", "danger")
+        return redirect(request.referrer or url_for("files.dashboard"))
+
+    db = database.get_db()
+    db.execute("UPDATE users SET role=? WHERE id=?", (new_role, g.user["id"]))
+    audit.log("ROLE_SWITCH", True, target=f"user:{g.user['id']}", details=f"Switched role to {new_role}")
+    flash(f"Active role switched to {policy.ROLES[new_role]} ({new_role}).", "info")
+    return redirect(request.referrer or url_for("files.dashboard"))
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])

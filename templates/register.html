@@ -37,6 +37,18 @@
             </div>
 
             <div class="mb-3">
+              <label class="form-label" for="r-role">Enterprise IAM Role</label>
+              <select id="r-role" name="role" class="form-select font-mono bg-dark border-secondary text-cyan">
+                <option value="user" selected>user — Standard Employee</option>
+                <option value="security_admin">security_admin — Information Security Administrator</option>
+                <option value="compliance_officer">compliance_officer — Data Governance &amp; Compliance</option>
+                <option value="auditor">auditor — Security &amp; Financial Auditor</option>
+                <option value="it_admin">it_admin — IT Systems Administrator</option>
+              </select>
+              <div class="form-text">Select role for enterprise permissions &amp; access policy</div>
+            </div>
+
+            <div class="mb-3">
               <label class="form-label" for="r-pw">Password</label>
               <div class="input-pw-wrapper">
                 <input id="r-pw" name="password" type="password" class="form-control input-pw"

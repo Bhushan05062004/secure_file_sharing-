@@ -19,9 +19,12 @@
           <th>ID</th>
           <th>Username</th>
           <th>Email</th>
-          <th>Role</th>
+          <th>Enterprise Role</th>
           <th>Files</th>
           <th>Created (UTC)</th>
+          {% if can('manage_users') %}
+            <th class="text-end">Assign Enterprise Role</th>
+          {% endif %}
         </tr>
       </thead>
       <tbody>
@@ -40,13 +43,8 @@
           </td>
           <td class="small text-muted">{{ u['email'] }}</td>
           <td>
-            {% if u['role'] == 'admin' %}
-              <span class="badge admin-badge-purple">
-                ★ admin
-              </span>
-            {% else %}
-              <span class="badge text-bg-secondary">user</span>
-            {% endif %}
+            <span class="badge text-bg-warning font-mono">{{ u['role']|upper }}</span>
+            <div class="small text-dim font-mono">{{ ROLES.get(u['role'], '') }}</div>
           </td>
           <td>
             <span class="font-mono small text-muted">
@@ -56,6 +54,21 @@
           <td class="font-mono small text-dim">
             {{ u['created_at'][:10] if u['created_at'] else '—' }}
           </td>
+          {% if can('manage_users') %}
+            <td class="text-end">
+              <form method="post" action="{{ url_for('update_user_role', user_id=u['id']) }}" class="d-inline-flex gap-1 justify-content-end align-items-center">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <select name="role" class="form-select form-select-sm font-mono border-secondary bg-dark text-cyan input-sm-fixed">
+                  {% for rkey, rdesc in ROLES.items() %}
+                    <option value="{{ rkey }}" {% if u['role'] == rkey %}selected{% endif %}>
+                      {{ rkey }}
+                    </option>
+                  {% endfor %}
+                </select>
+                <button class="btn btn-sm btn-outline-cyan" type="submit">Update</button>
+              </form>
+            </td>
+          {% endif %}
         </tr>
       {% endfor %}
       </tbody>

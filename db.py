@@ -113,6 +113,32 @@ def init_db():
     d = get_db()
     d.executescript(SCHEMA)
 
+    # Migrate legacy users table CHECK constraint if needed
+    user_sql = d.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").fetchone()
+    if user_sql and "auditor" not in user_sql[0]:
+        d.execute("PRAGMA foreign_keys=OFF")
+        d.execute("""
+            CREATE TABLE users_migrated (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'auditor', 'security_admin', 'compliance_officer', 'it_admin')),
+                public_key TEXT NOT NULL,
+                enc_private_key TEXT NOT NULL,
+                failed_attempts INTEGER NOT NULL DEFAULT 0,
+                locked_until TEXT,
+                session_nonce TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+        """)
+        cols = [r["name"] for r in d.execute("PRAGMA table_info(users)").fetchall()]
+        cols_str = ", ".join(cols)
+        d.execute(f"INSERT INTO users_migrated ({cols_str}) SELECT {cols_str} FROM users")
+        d.execute("DROP TABLE users")
+        d.execute("ALTER TABLE users_migrated RENAME TO users")
+        d.execute("PRAGMA foreign_keys=ON")
+
     # Safe column migrations for existing databases
     user_cols = [r["name"] for r in d.execute("PRAGMA table_info(users)").fetchall()]
     if "session_nonce" not in user_cols:

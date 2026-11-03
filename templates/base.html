@@ -49,7 +49,7 @@
         {% if can('view_users') %}
           <a class="nav-link-custom{% if request.endpoint == 'admin.admin_users' or request.endpoint == 'admin_users' %} nav-active{% endif %}"
              href="{{ url_for('admin_users') }}">
-            <span aria-hidden="true">◎</span> Users
+            <span aria-hidden="true">◎</span> Users &amp; Roles
           </a>
         {% endif %}
         {% if can('view_groups') %}
@@ -62,9 +62,23 @@
            href="{{ url_for('change_password_view') }}">
           <span aria-hidden="true">⚙</span> Key/Password
         </a>
-        <span class="user-badge">
-          {{ g.user['username'] }} <span class="small opacity-75 font-mono">[{{ g.user['role'] }}]</span>
-        </span>
+
+        <!-- IAM Role Switcher for Enterprise Testing -->
+        <form method="post" action="{{ url_for('switch_role') }}" class="d-inline m-0" id="role-switch-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text font-mono bg-dark border-secondary text-cyan small" title="Logged in user">👤 {{ g.user['username'] }}</span>
+            <select name="role" class="form-select form-select-sm font-mono border-secondary bg-dark text-warning"
+                    title="Enterprise Role (Select to switch permissions)" onchange="this.form.submit()">
+              {% for rkey, rdesc in ROLES.items() %}
+                <option value="{{ rkey }}" {% if g.user['role'] == rkey %}selected{% endif %}>
+                  {{ rkey|upper }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        </form>
+
         <form method="post" action="{{ url_for('logout') }}" class="m-0" id="logout-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-outline-light btn-sm" id="logout-btn" type="submit">Logout</button>

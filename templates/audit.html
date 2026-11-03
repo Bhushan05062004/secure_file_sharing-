@@ -22,7 +22,7 @@
           <span>⚠</span> Tampering detected at entry #{{ bad_id }}
         </div>
       {% endif %}
-    {% elif g.user['role'] == 'admin' %}
+    {% elif can('verify_audit_chain') %}
       <a class="btn btn-sm btn-outline-primary" href="{{ url_for('audit_view', verify=1) }}">
         🔍 Verify Chain Integrity
       </a>

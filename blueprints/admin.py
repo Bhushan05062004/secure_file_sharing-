@@ -43,7 +43,29 @@ def admin_users():
         "SELECT u.id,u.username,u.email,u.role,u.created_at,"
         "(SELECT COUNT(*) FROM files f WHERE f.owner_id=u.id) AS nfiles FROM users u"
     ).fetchall()
-    return render_template("users.html", users=users)
+    return render_template("users.html", users=users, roles=policy.ROLES)
+
+
+@admin_bp.route("/admin/users/<int:user_id>/role", methods=["POST"])
+def update_user_role(user_id):
+    if not policy.can(g.user, "manage_users"):
+        audit.log("PERMISSION_DENIED", False, target=request.path, details="Cannot change user role")
+        abort(403, "Access denied.")
+
+    new_role = request.form.get("role", "").strip()
+    if new_role not in policy.ROLES:
+        flash("Invalid role specified.", "danger")
+        return redirect(url_for("admin.admin_users"))
+
+    db = database.get_db()
+    u = db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    if not u:
+        abort(404)
+
+    db.execute("UPDATE users SET role=? WHERE id=?", (new_role, user_id))
+    audit.log("ROLE_CHANGE", True, target=f"user:{user_id}", details=f"{u['username']} role changed to {new_role}")
+    flash(f"Updated role for '{u['username']}' to {policy.ROLES[new_role]} ({new_role}).", "success")
+    return redirect(url_for("admin.admin_users"))
 
 
 @admin_bp.route("/admin/groups", methods=["GET", "POST"])
