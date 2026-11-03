@@ -25,9 +25,18 @@
     <form method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data"
           class="row g-3 align-items-end" id="upload-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="col-md-8">
+      <div class="col-md-5">
         <label class="form-label" for="upload-file">Select file <span class="text-muted fw-normal text-none">(max 16 MB)</span></label>
         <input type="file" name="file" class="form-control" id="upload-file" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="classification">Classification</label>
+        <select name="classification" id="classification" class="form-select font-mono">
+          <option value="internal" selected>Internal</option>
+          <option value="public">Public</option>
+          <option value="confidential">Confidential</option>
+          <option value="restricted">Restricted</option>
+        </select>
       </div>
       <div class="col-md-4">
         <button class="btn btn-dark w-100" type="submit" id="upload-btn">
@@ -52,6 +61,7 @@
       <thead>
         <tr>
           <th>Name</th>
+          <th>Classification</th>
           <th>Size</th>
           <th>Uploaded (UTC)</th>
           <th>Shared with</th>
@@ -65,6 +75,13 @@
             <span class="file-name" title="{{ f['original_name'] }}">
               <span class="me-1 opacity-50">📄</span>{{ f['original_name'] }}
             </span>
+          </td>
+          <td>
+            {% set cls = f['classification'] or 'internal' %}
+            <span class="badge badge-{{ cls }}">{{ cls|upper }}</span>
+            {% if f['legal_hold'] %}
+              <span class="badge badge-legal-hold ms-1" title="Legal hold prevents file deletion">🔒 HELD</span>
+            {% endif %}
           </td>
           <td>
             <span class="font-mono text-muted small">
@@ -111,17 +128,30 @@
               <a class="btn btn-sm btn-outline-primary"
                  href="{{ url_for('share', file_id=f['id']) }}"
                  title="Share">↗ Share</a>
-              <form method="post" action="{{ url_for('delete', file_id=f['id']) }}" class="d-inline"
-                    onsubmit="return confirm('Delete \'{{ f['original_name'] }}\'? This cannot be undone.')">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-sm btn-outline-danger" title="Delete" type="submit">✕</button>
-              </form>
+              {% if can('toggle_legal_hold') %}
+                <form method="post" action="{{ url_for('toggle_legal_hold', file_id=f['id']) }}" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-sm {{ 'btn-outline-danger' if f['legal_hold'] else 'btn-outline-warning' }}"
+                          title="{{ 'Release Legal Hold' if f['legal_hold'] else 'Apply Legal Hold' }}" type="submit">
+                    {{ '🔓 Release' if f['legal_hold'] else '🔒 Hold' }}
+                  </button>
+                </form>
+              {% endif %}
+              {% if f['legal_hold'] %}
+                <button class="btn btn-sm btn-outline-secondary opacity-50" title="File is under legal hold and cannot be deleted" type="button" disabled>🔒</button>
+              {% else %}
+                <form method="post" action="{{ url_for('delete', file_id=f['id']) }}" class="d-inline"
+                      onsubmit="return confirm('Delete \'{{ f['original_name'] }}\'? This cannot be undone.')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-sm btn-outline-danger" title="Delete" type="submit">✕</button>
+                </form>
+              {% endif %}
             </div>
           </td>
         </tr>
       {% else %}
         <tr>
-          <td colspan="5" class="text-center text-muted py-4">
+          <td colspan="6" class="text-center text-muted py-4">
             <div class="empty-state-box">
               <div class="empty-state-icon">🗂</div>
               <div>No files yet — upload your first encrypted file above.</div>
@@ -144,6 +174,7 @@
         <tr>
           <th>Name</th>
           <th>From</th>
+          <th>Classification</th>
           <th>Size</th>
           <th>Limits</th>
           <th>Status</th>
@@ -161,6 +192,13 @@
           </td>
           <td>
             <span class="small text-muted">{{ s['owner'] }}</span>
+          </td>
+          <td>
+            {% set scls = s['classification'] or 'internal' %}
+            <span class="badge badge-{{ scls }}">{{ scls|upper }}</span>
+            {% if s['legal_hold'] %}
+              <span class="badge badge-legal-hold ms-1">🔒 HELD</span>
+            {% endif %}
           </td>
           <td>
             <span class="font-mono text-muted small">
@@ -188,7 +226,7 @@
         </tr>
       {% else %}
         <tr>
-          <td colspan="6" class="text-center text-muted py-4">
+          <td colspan="7" class="text-center text-muted py-4">
             <div class="empty-state-box">
               <div class="empty-state-icon">📭</div>
               <div>Nothing shared with you yet.</div>
@@ -200,5 +238,61 @@
     </table>
   </div>
 </div>
+
+{% if enterprise_files %}
+<!-- ═══ Enterprise File Governance & Compliance ═══ -->
+<div class="section-title mt-5">🏢 Enterprise File Governance &amp; Legal Holds</div>
+
+<div class="card mb-4">
+  <div class="table-responsive">
+    <table class="table" aria-label="Enterprise governance files">
+      <thead>
+        <tr>
+          <th>Owner</th>
+          <th>File Name</th>
+          <th>Classification</th>
+          <th>Size</th>
+          <th>Uploaded (UTC)</th>
+          <th>Compliance Status</th>
+          <th class="text-end">Governance Action</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for ef in enterprise_files %}
+        <tr>
+          <td><span class="font-mono text-cyan small">{{ ef['owner_name'] }}</span></td>
+          <td><span class="file-name">{{ ef['original_name'] }}</span></td>
+          <td>
+            {% set efcls = ef['classification'] or 'internal' %}
+            <span class="badge badge-{{ efcls }}">{{ efcls|upper }}</span>
+          </td>
+          <td><span class="font-mono text-muted small">{{ ef['size']|size }}</span></td>
+          <td><span class="font-mono text-dim small">{{ ef['created_at'][:19] if ef['created_at'] else '—' }}</span></td>
+          <td>
+            {% if ef['legal_hold'] %}
+              <span class="badge badge-legal-hold">🔒 LEGAL HOLD</span>
+            {% else %}
+              <span class="text-dim small font-mono">Standard</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if can('toggle_legal_hold') %}
+              <form method="post" action="{{ url_for('toggle_legal_hold', file_id=ef['id']) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm {{ 'btn-outline-danger' if ef['legal_hold'] else 'btn-outline-warning' }}" type="submit">
+                  {{ '🔓 Release Hold' if ef['legal_hold'] else '🔒 Apply Legal Hold' }}
+                </button>
+              </form>
+            {% else %}
+              <span class="text-dim small">—</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 
 {% endblock %}

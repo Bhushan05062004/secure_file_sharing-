@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS files (
     stored_name TEXT UNIQUE NOT NULL,
     size INTEGER NOT NULL,
     content_hmac TEXT NOT NULL DEFAULT '',
+    classification TEXT NOT NULL DEFAULT 'internal' CHECK(classification IN ('public', 'internal', 'confidential', 'restricted')),
+    legal_hold INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 
@@ -76,6 +78,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 -- Performance & Integrity Indexes
 CREATE INDEX IF NOT EXISTS idx_files_owner ON files(owner_id);
+CREATE INDEX IF NOT EXISTS idx_files_classification ON files(classification);
+CREATE INDEX IF NOT EXISTS idx_files_legal_hold ON files(legal_hold);
 CREATE INDEX IF NOT EXISTS idx_shares_file ON shares(file_id);
 CREATE INDEX IF NOT EXISTS idx_shares_recipient ON shares(recipient_id);
 CREATE INDEX IF NOT EXISTS idx_shares_active ON shares(file_id, recipient_id, revoked);
@@ -127,3 +131,7 @@ def init_db():
             pass
     if "content_hmac" not in file_cols:
         d.execute("ALTER TABLE files ADD COLUMN content_hmac TEXT NOT NULL DEFAULT ''")
+    if "classification" not in file_cols:
+        d.execute("ALTER TABLE files ADD COLUMN classification TEXT NOT NULL DEFAULT 'internal'")
+    if "legal_hold" not in file_cols:
+        d.execute("ALTER TABLE files ADD COLUMN legal_hold INTEGER NOT NULL DEFAULT 0")

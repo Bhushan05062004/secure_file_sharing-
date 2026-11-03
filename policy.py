@@ -18,6 +18,38 @@ ROLES = {
     "it_admin": "IT Systems Administrator"
 }
 
+# Enterprise File Classifications & Policy Matrix
+CLASSIFICATIONS = {
+    "public": {
+        "label": "Public",
+        "description": "Publicly disclosable information",
+        "max_expiry_hours": 8760,  # 1 year
+        "allowed_recipient_roles": {"user", "auditor", "security_admin", "compliance_officer", "it_admin"},
+        "badge_class": "badge-public"
+    },
+    "internal": {
+        "label": "Internal",
+        "description": "Standard company internal data",
+        "max_expiry_hours": 2160,  # 90 days
+        "allowed_recipient_roles": {"user", "auditor", "security_admin", "compliance_officer", "it_admin"},
+        "badge_class": "badge-internal"
+    },
+    "confidential": {
+        "label": "Confidential",
+        "description": "Sensitive business or personnel data",
+        "max_expiry_hours": 336,   # 14 days
+        "allowed_recipient_roles": {"user", "security_admin", "compliance_officer", "it_admin"},
+        "badge_class": "badge-confidential"
+    },
+    "restricted": {
+        "label": "Restricted",
+        "description": "High-impact trade secrets or critical credentials",
+        "max_expiry_hours": 24,    # 24 hours
+        "allowed_recipient_roles": {"security_admin", "compliance_officer", "it_admin"},
+        "badge_class": "badge-restricted"
+    }
+}
+
 # Role-based static permissions (actions allowed regardless of resource ownership)
 ROLE_PERMISSIONS = {
     "user": {
@@ -32,6 +64,7 @@ ROLE_PERMISSIONS = {
         "verify_audit_chain",
         "view_users",
         "view_groups",
+        "view_all_files",
         "change_password"
     },
     "security_admin": {
@@ -42,7 +75,9 @@ ROLE_PERMISSIONS = {
         "manage_users",
         "view_groups",
         "manage_groups",
+        "view_all_files",
         "revoke_any_share",
+        "toggle_legal_hold",
         "change_password"
     },
     "compliance_officer": {
@@ -51,7 +86,9 @@ ROLE_PERMISSIONS = {
         "verify_audit_chain",
         "view_users",
         "view_groups",
+        "view_all_files",
         "view_compliance_reports",
+        "toggle_legal_hold",
         "change_password"
     },
     "it_admin": {
@@ -61,6 +98,7 @@ ROLE_PERMISSIONS = {
         "manage_users",
         "view_groups",
         "manage_groups",
+        "view_all_files",
         "view_audit_logs",
         "change_password"
     }
@@ -136,8 +174,15 @@ def can(user, action: str, resource=None) -> bool:
         owner_id = resource.get("owner_id") if isinstance(resource, dict) else resource["owner_id"]
         return owner_id == user_id
 
+    if action == "toggle_legal_hold":
+        return role in {"security_admin", "compliance_officer"}
+
     if action == "delete_file":
         if not resource:
+            return False
+        # Regulated legal hold blocks deletion by ANY user, including owner and administrators
+        legal_hold = resource.get("legal_hold") if isinstance(resource, dict) else resource["legal_hold"]
+        if bool(legal_hold):
             return False
         owner_id = resource.get("owner_id") if isinstance(resource, dict) else resource["owner_id"]
         return owner_id == user_id
@@ -149,6 +194,12 @@ def can(user, action: str, resource=None) -> bool:
         owner_id = resource.get("owner_id") if isinstance(resource, dict) else resource["owner_id"]
         if owner_id == user_id:
             return True
+
+        # Check classification access
+        classification = resource.get("classification") if isinstance(resource, dict) else resource["classification"]
+        cls_rules = CLASSIFICATIONS.get(classification, CLASSIFICATIONS["internal"])
+        if role not in cls_rules["allowed_recipient_roles"]:
+            return False
 
         # Check if recipient has an active share directly
         file_id = resource.get("id") if isinstance(resource, dict) else resource["id"]

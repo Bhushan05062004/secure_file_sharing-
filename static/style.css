@@ -1248,3 +1248,36 @@ tr:has(.btn:hover) td {
 .input-sm-fixed {
   width: 120px !important;
 }
+
+
+/* ── Enterprise Classification Badges ── */
+.badge-public {
+  background: rgba(0, 255, 136, 0.12) !important;
+  color: var(--accent-green) !important;
+  border: 1px solid rgba(0, 255, 136, 0.3) !important;
+}
+
+.badge-internal {
+  background: rgba(0, 245, 255, 0.12) !important;
+  color: var(--accent-cyan) !important;
+  border: 1px solid rgba(0, 245, 255, 0.3) !important;
+}
+
+.badge-confidential {
+  background: rgba(251, 191, 36, 0.12) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(251, 191, 36, 0.3) !important;
+}
+
+.badge-restricted {
+  background: rgba(255, 51, 102, 0.15) !important;
+  color: var(--accent-red) !important;
+  border: 1px solid rgba(255, 51, 102, 0.4) !important;
+  box-shadow: 0 0 10px rgba(255, 51, 102, 0.2);
+}
+
+.badge-legal-hold {
+  background: rgba(168, 85, 247, 0.15) !important;
+  color: #c084fc !important;
+  border: 1px solid rgba(168, 85, 247, 0.35) !important;
+}

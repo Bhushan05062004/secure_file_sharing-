@@ -14,9 +14,17 @@
       <div class="card-body">
 
         <h4 class="mb-1">Share File</h4>
-        <p class="font-mono text-dim small mb-4">
+        <p class="font-mono text-dim small mb-2">
           // {{ f['original_name'] }}
         </p>
+
+        <div class="d-flex align-items-center gap-2 mb-4">
+          {% set fcls = f['classification'] or 'internal' %}
+          <span class="badge badge-{{ fcls }}">{{ fcls|upper }}</span>
+          {% if f['legal_hold'] %}
+            <span class="badge badge-legal-hold">🔒 LEGAL HOLD</span>
+          {% endif %}
+        </div>
 
         <!-- Crypto explanation -->
         <div class="info-hint mb-4">
@@ -34,11 +42,13 @@
           </div>
 
           <div class="row g-3 mb-4">
+            {% set fcls = f['classification'] or 'internal' %}
+            {% set max_h = CLASSIFICATIONS[fcls]['max_expiry_hours'] %}
             <div class="col-sm-6">
               <label class="form-label" for="expiry_hours">Expires after (hours)</label>
               <input id="expiry_hours" name="expiry_hours" type="number"
-                     min="1" max="8760" class="form-control" placeholder="optional">
-              <div class="form-text">Max 8760 h (1 year)</div>
+                     min="1" max="{{ max_h }}" class="form-control" placeholder="optional (max {{ max_h }}h)">
+              <div class="form-text">{{ fcls|upper }} policy max: {{ max_h }} h</div>
             </div>
             <div class="col-sm-6">
               <label class="form-label" for="max_downloads">Max Downloads</label>

@@ -106,6 +106,7 @@ def create_app(test_config=None):
         "audit_view": "admin.audit_view",
         "admin_users": "admin.admin_users",
         "admin_groups": "admin.admin_groups",
+        "toggle_legal_hold": "files.toggle_legal_hold",
     }
 
     def smart_url_for(endpoint, **values):
@@ -114,6 +115,7 @@ def create_app(test_config=None):
 
     app.jinja_env.globals["url_for"] = smart_url_for
     app.jinja_env.globals["can"] = lambda action, resource=None: policy.can(g.user, action, resource)
+    app.jinja_env.globals["CLASSIFICATIONS"] = policy.CLASSIFICATIONS
     app.can = policy.can
 
     def share_status(s):
@@ -170,6 +172,7 @@ def create_app(test_config=None):
         ("audit_view", "admin.audit_view"),
         ("admin_users", "admin.admin_users"),
         ("admin_groups", "admin.admin_groups"),
+        ("toggle_legal_hold", "files.toggle_legal_hold"),
     ]
     for alias, target in aliases:
         if target in app.view_functions:

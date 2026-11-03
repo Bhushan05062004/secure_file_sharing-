@@ -50,6 +50,13 @@ def dashboard():
         (g.user["id"],)
     ).fetchall()
 
+    enterprise_files = []
+    if policy.can(g.user, "view_all_files"):
+        enterprise_files = db.execute(
+            "SELECT f.*, u.username as owner_name FROM files f "
+            "JOIN users u ON u.id=f.owner_id ORDER BY f.id DESC"
+        ).fetchall()
+
     shares = db.execute(
         "SELECT s.*, u.username AS recipient FROM shares s "
         "JOIN files f ON f.id=s.file_id JOIN users u ON u.id=s.recipient_id "
@@ -62,13 +69,20 @@ def dashboard():
         by_file.setdefault(s["file_id"], []).append(s)
 
     received = db.execute(
-        "SELECT s.*, f.original_name, f.size, u.username AS owner FROM shares s "
+        "SELECT s.*, f.original_name, f.size, f.classification, f.legal_hold, u.username AS owner FROM shares s "
         "JOIN files f ON f.id=s.file_id JOIN users u ON u.id=f.owner_id "
         "WHERE s.recipient_id=? AND s.revoked=0 ORDER BY s.id DESC",
         (g.user["id"],)
     ).fetchall()
 
-    return render_template("dashboard.html", files=files, by_file=by_file, received=received)
+    return render_template(
+        "dashboard.html",
+        files=files,
+        by_file=by_file,
+        received=received,
+        enterprise_files=enterprise_files,
+        classifications=policy.CLASSIFICATIONS
+    )
 
 
 @files_bp.route("/upload", methods=["POST"])
@@ -100,15 +114,19 @@ def upload():
     hmac_digest = audit.content_hmac(data)
     db = database.get_db()
 
+    classification = request.form.get("classification", "internal").strip().lower()
+    if classification not in policy.CLASSIFICATIONS:
+        classification = "internal"
+
     # Robustness: ensure temporary or orphaned files are cleaned up if disk/DB fails
     try:
         with open(full_path, "wb") as fh:
             fh.write(blob)
 
         cur = db.execute(
-            "INSERT INTO files (owner_id,original_name,stored_name,size,content_hmac,created_at)"
-            " VALUES (?,?,?,?,?,?)",
-            (g.user["id"], name, stored, len(data), hmac_digest, audit.now_iso())
+            "INSERT INTO files (owner_id,original_name,stored_name,size,content_hmac,classification,legal_hold,created_at)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            (g.user["id"], name, stored, len(data), hmac_digest, classification, 0, audit.now_iso())
         )
         file_id = cur.lastrowid
         db.execute("INSERT INTO file_keys VALUES (?,?,?)", (file_id, g.user["id"], wrapped))
@@ -120,7 +138,7 @@ def upload():
                 pass
         raise
 
-    audit.log("UPLOAD", True, target=f"file:{file_id}", details=f"{name} ({len(data)} B)")
+    audit.log("UPLOAD", True, target=f"file:{file_id}", details=f"{name} ({len(data)} B) [{classification.upper()}]")
     flash(f"'{name}' encrypted and stored.", "success")
     return redirect(url_for("files.dashboard"))
 
@@ -226,12 +244,23 @@ def share(file_id):
         except ValueError:
             hours = limit = -1
 
+        f_cls = f["classification"] if "classification" in f.keys() else "internal"
+        cls_info = policy.CLASSIFICATIONS.get(f_cls, policy.CLASSIFICATIONS["internal"])
+        max_allowed_hours = cls_info["max_expiry_hours"]
+
         if recipient is None or recipient["id"] == g.user["id"]:
             flash("Enter the username of another registered user.", "danger")
-        elif (hours is not None and not 1 <= hours <= 8760) or \
+        elif recipient["role"] not in cls_info["allowed_recipient_roles"]:
+            audit.log("SHARE_DENIED", False, target=f"file:{file_id}",
+                      details=f"recipient '{rname}' role '{recipient['role']}' not authorized for {f_cls.upper()}")
+            flash(f"User '{rname}' (role: {recipient['role']}) is not authorized to receive {f_cls.upper()} classified files.", "danger")
+        elif (hours is not None and not 1 <= hours <= max_allowed_hours) or \
              (limit is not None and not 1 <= limit <= 1000):
-            flash("Expiry must be 1-8760 hours and download limit 1-1000.", "danger")
+            flash(f"For {f_cls.upper()} files, expiry must be 1-{max_allowed_hours} hours and download limit 1-1000.", "danger")
         else:
+            if hours is None and f_cls in ("confidential", "restricted"):
+                hours = max_allowed_hours
+
             priv = current_app.keystore_get(session.get("sid"))
             if priv is None:
                 session.clear()
@@ -295,6 +324,9 @@ def delete(file_id):
         abort(404, "File not found.")
 
     if not policy.can(g.user, "delete_file", f):
+        if bool(f["legal_hold"]):
+            audit.log("LEGAL_HOLD_BLOCKED_DELETION", False, target=f"file:{file_id}", details=request.path)
+            abort(403, "File is under legal hold and cannot be deleted.")
         audit.log("OWNERSHIP_VIOLATION", False, target=f"file:{file_id}", details=request.path)
         abort(403, "Only the owner can delete this file.")
 
@@ -306,4 +338,25 @@ def delete(file_id):
     db.execute("DELETE FROM files WHERE id=?", (file_id,))
     audit.log("DELETE", True, target=f"file:{file_id}", details=f["original_name"])
     flash("File deleted.", "info")
+    return redirect(url_for("files.dashboard"))
+
+
+@files_bp.route("/legal-hold/<int:file_id>", methods=["POST"])
+@login_required
+def toggle_legal_hold(file_id):
+    db = database.get_db()
+    f = db.execute("SELECT * FROM files WHERE id=?", (file_id,)).fetchone()
+    if f is None:
+        abort(404, "File not found.")
+
+    if not policy.can(g.user, "toggle_legal_hold", f):
+        audit.log("LEGAL_HOLD_DENIED", False, target=f"file:{file_id}", details="insufficient privileges")
+        abort(403, "Only compliance officers or security administrators can manage legal hold.")
+
+    new_val = 0 if f["legal_hold"] else 1
+    db.execute("UPDATE files SET legal_hold=? WHERE id=?", (new_val, file_id))
+    action_type = "LEGAL_HOLD_SET" if new_val else "LEGAL_HOLD_CLEARED"
+    audit.log(action_type, True, target=f"file:{file_id}", details=f["original_name"])
+    status_str = "applied to" if new_val else "removed from"
+    flash(f"Legal hold {status_str} '{f['original_name']}'.", "info")
     return redirect(url_for("files.dashboard"))
