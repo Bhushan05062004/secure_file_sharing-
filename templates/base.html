@@ -68,7 +68,7 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="input-group input-group-sm">
             <span class="input-group-text font-mono bg-dark border-secondary text-cyan small" title="Logged in user">👤 {{ g.user['username'] }}</span>
-            <select name="role" class="form-select form-select-sm font-mono border-secondary bg-dark text-warning"
+            <select name="role" class="form-select form-select-sm font-mono select-role"
                     title="Enterprise Role (Select to switch permissions)" onchange="this.form.submit()">
               {% for rkey, rdesc in ROLES.items() %}
                 <option value="{{ rkey }}" {% if g.user['role'] == rkey %}selected{% endif %}>

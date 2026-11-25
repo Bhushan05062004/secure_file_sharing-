@@ -1281,3 +1281,191 @@ tr:has(.btn:hover) td {
   color: #c084fc !important;
   border: 1px solid rgba(168, 85, 247, 0.35) !important;
 }
+
+
+/* ════════════════════════════════════════════════════════════════
+   CUSTOM RICH DROPDOWNS & SELECT STYLING (UPLOAD & SHARE)
+   ════════════════════════════════════════════════════════════════ */
+.form-select, select.form-select {
+  background-color: #0b1326 !important;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2300f5ff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.85rem center !important;
+  background-size: 16px 12px !important;
+  border: 1px solid rgba(0, 245, 255, 0.3) !important;
+  border-radius: 10px !important;
+  color: #f1f5f9 !important;
+  padding: 0.65rem 2.4rem 0.65rem 1rem !important;
+  font-size: 0.9rem !important;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.08) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  outline: none !important;
+}
+
+.form-select:hover, select.form-select:hover {
+  background-color: #0f1a33 !important;
+  border-color: rgba(0, 245, 255, 0.65) !important;
+  box-shadow: 0 0 16px rgba(0, 245, 255, 0.22), inset 0 1px 1px rgba(255, 255, 255, 0.1) !important;
+}
+
+.form-select:focus, select.form-select:focus {
+  background-color: #122040 !important;
+  border-color: #00f5ff !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(0, 245, 255, 0.25), 0 0 25px rgba(0, 245, 255, 0.2) !important;
+}
+
+/* Dropdown list item options styling across all browsers */
+.form-select option,
+select option {
+  background-color: #090f1d !important;
+  color: #e2e8f0 !important;
+  padding: 0.75rem 1.1rem !important;
+  font-size: 0.92rem !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.form-select option:hover,
+.form-select option:focus,
+.form-select option:checked,
+select option:checked {
+  background-color: #17284d !important;
+  color: #00f5ff !important;
+}
+
+/* Custom Select Borders for Classification & Roles */
+.select-classification {
+  border-left: 3.5px solid var(--accent-cyan) !important;
+}
+
+.select-role {
+  border-left: 3.5px solid #fbbf24 !important;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PREMIUM ENHANCED SIGN UP / AUTHENTICATION PAGE
+   ════════════════════════════════════════════════════════════════ */
+.auth-card-wide {
+  max-width: 520px !important;
+}
+
+.auth-card-wide .card {
+  background: rgba(8, 14, 28, 0.85) !important;
+  backdrop-filter: blur(24px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(200%) !important;
+  border: 1px solid rgba(0, 245, 255, 0.22) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.8), 0 0 40px rgba(0, 245, 255, 0.08) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-card-wide .card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent-cyan), var(--accent-purple), transparent);
+  pointer-events: none;
+}
+
+.auth-header-wrapper {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+.badge-identity-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+  background: rgba(0, 245, 255, 0.08);
+  border: 1px solid rgba(0, 245, 255, 0.25);
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+}
+
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan);
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.auth-header-title {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+  letter-spacing: -0.01em;
+}
+
+.auth-header-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  font-family: 'Outfit', sans-serif;
+  margin-bottom: 0;
+}
+
+.btn-primary-glow {
+  background: linear-gradient(135deg, #00f5ff 0%, #0099ff 100%) !important;
+  color: #020617 !important;
+  font-weight: 700 !important;
+  font-size: 0.95rem !important;
+  letter-spacing: 0.04em !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 0.85rem 1.25rem !important;
+  box-shadow: 0 4px 20px rgba(0, 245, 255, 0.35) !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.btn-primary-glow:hover {
+  background: linear-gradient(135deg, #33f7ff 0%, #1aa3ff 100%) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 28px rgba(0, 245, 255, 0.55), 0 0 35px rgba(0, 245, 255, 0.25) !important;
+  color: #020617 !important;
+}
+
+.btn-primary-glow:active {
+  transform: translateY(0);
+}
+
+.auth-security-pills {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 1.25rem;
+}
+
+.sec-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 6px;
+  padding: 0.3rem 0.65rem;
+}

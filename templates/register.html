@@ -15,15 +15,21 @@
 
       <!-- Register card -->
       <div class="card">
-        <div class="card-body">
+        <div class="card-body p-4">
 
-          <h4 class="auth-header">Create Account</h4>
+          <div class="auth-header-wrapper">
+            <div class="badge-identity-pill">
+              <span class="badge-dot"></span> ENTERPRISE VAULT ENROLLMENT
+            </div>
+            <h3 class="auth-header-title">Create Secure Account</h3>
+            <p class="auth-header-subtitle">Client-side RSA keypair will be generated for your identity</p>
+          </div>
 
           <form method="post" id="reg-form" novalidate>
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="mb-3">
-              <label class="form-label" for="r-username">Username</label>
+              <label class="form-label" for="r-username">👤 Username</label>
               <input id="r-username" name="username" class="form-control" required
                      pattern="[A-Za-z0-9_]{3,32}" placeholder="your_username"
                      autocomplete="username">
@@ -31,26 +37,26 @@
             </div>
 
             <div class="mb-3">
-              <label class="form-label" for="r-email">Email</label>
+              <label class="form-label" for="r-email">✉️ Work Email</label>
               <input id="r-email" name="email" type="email" class="form-control" required
-                     placeholder="you@example.com" autocomplete="email">
+                     placeholder="you@company.com" autocomplete="email">
             </div>
 
             <div class="mb-3">
-              <label class="form-label" for="r-role">Enterprise IAM Role</label>
-              <select id="r-role" name="role" class="form-select font-mono bg-dark border-secondary text-cyan">
-                <option value="user" selected>user — Standard Employee</option>
-                <option value="manager">manager — Department Manager</option>
-                <option value="security_admin">security_admin — Information Security Administrator</option>
-                <option value="compliance_officer">compliance_officer — Data Governance &amp; Compliance</option>
-                <option value="auditor">auditor — Security &amp; Financial Auditor</option>
-                <option value="it_admin">it_admin — IT Systems Administrator</option>
+              <label class="form-label" for="r-role">🛡️ Enterprise IAM Role</label>
+              <select id="r-role" name="role" class="form-select font-mono select-role">
+                <option value="user" selected>👤 Standard Employee (user)</option>
+                <option value="manager">👔 Department Manager (manager)</option>
+                <option value="security_admin">🛡️ Information Security Administrator (security_admin)</option>
+                <option value="compliance_officer">⚖️ Data Governance &amp; Compliance (compliance_officer)</option>
+                <option value="auditor">🔍 Security &amp; Financial Auditor (auditor)</option>
+                <option value="it_admin">💻 IT Systems Administrator (it_admin)</option>
               </select>
-              <div class="form-text">Select role for enterprise permissions &amp; access policy</div>
+              <div class="form-text">Determines your RBAC clearance level and access scope</div>
             </div>
 
             <div class="mb-3">
-              <label class="form-label" for="r-pw">Password</label>
+              <label class="form-label" for="r-pw">🔑 Master Passphrase</label>
               <div class="input-pw-wrapper">
                 <input id="r-pw" name="password" type="password" class="form-control input-pw"
                        required minlength="10" autocomplete="new-password"
@@ -66,7 +72,7 @@
             </div>
 
             <div class="mb-4">
-              <label class="form-label" for="r-confirm">Confirm Password</label>
+              <label class="form-label" for="r-confirm">🔐 Confirm Passphrase</label>
               <div class="input-pw-wrapper">
                 <input id="r-confirm" name="confirm" type="password" class="form-control input-pw"
                        required autocomplete="new-password"
@@ -76,18 +82,24 @@
               </div>
             </div>
 
-            <button class="btn btn-dark w-100 auth-submit-btn" type="submit" id="reg-btn">
-              Create Account &amp; Generate Keys
+            <button class="btn btn-primary-glow w-100 auth-submit-btn" type="submit" id="reg-btn">
+              🔒 Create Account &amp; Generate RSA Keys
             </button>
           </form>
 
           <div class="auth-footer">
             <p class="small auth-footer-text">
-              Already have an account?
+              Already have an enterprise vault?
               <a href="{{ url_for('login') }}" class="auth-link-cyan">Sign in →</a>
             </p>
           </div>
         </div>
+      </div>
+
+      <div class="auth-security-pills">
+        <span class="sec-pill">🛡️ Zero-Plaintext Storage</span>
+        <span class="sec-pill">🔑 3072-bit RSA-OAEP</span>
+        <span class="sec-pill">⚡ scrypt (n=2¹⁷)</span>
       </div>
 
       <div class="info-hint info-hint-center">
