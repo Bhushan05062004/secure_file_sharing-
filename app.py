@@ -109,6 +109,7 @@ def create_app(test_config=None):
         "toggle_legal_hold": "files.toggle_legal_hold",
         "switch_role": "auth.switch_role",
         "update_user_role": "admin.update_user_role",
+        "revoke_role_shares": "files.revoke_role_shares",
     }
 
     def smart_url_for(endpoint, **values):
@@ -178,6 +179,7 @@ def create_app(test_config=None):
         ("toggle_legal_hold", "files.toggle_legal_hold"),
         ("switch_role", "auth.switch_role"),
         ("update_user_role", "admin.update_user_role"),
+        ("revoke_role_shares", "files.revoke_role_shares"),
     ]
     for alias, target in aliases:
         if target in app.view_functions:

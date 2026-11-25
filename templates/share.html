@@ -29,16 +29,51 @@
         <!-- Crypto explanation -->
         <div class="info-hint mb-4">
           🔑 The file's AES key is decrypted with your private RSA key, then re-encrypted
-          with the recipient's RSA public key. The encrypted file itself is never re-exposed.
+          with recipient RSA public keys. Zero plaintext ever touches disk or network.
         </div>
 
         <form method="post" id="share-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
+          <!-- Share Type Selection -->
           <div class="mb-3">
+            <label class="form-label fw-bold">Sharing Target</label>
+            <div class="d-flex gap-4 mb-2">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="share_type" id="type-role" value="role" checked>
+                <label class="form-check-label" for="type-role">
+                  👥 Enterprise Role (e.g. All Managers, All Employees)
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="share_type" id="type-user" value="user">
+                <label class="form-check-label" for="type-user">
+                  👤 Specific User
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Role Target Selection -->
+          <div class="mb-3" id="group-role-select">
+            <label class="form-label" for="target_role">Select Target Role / Department</label>
+            <select id="target_role" name="target_role" class="form-select font-mono bg-dark border-secondary text-cyan">
+              <option value="manager">Managers — Department Managers &amp; Team Leads</option>
+              <option value="user" selected>Employees — All Standard Employees</option>
+              <option value="it_admin">IT Administrators</option>
+              <option value="security_admin">Security Administrators</option>
+              <option value="compliance_officer">Compliance &amp; Governance Officers</option>
+              <option value="auditor">Auditors</option>
+            </select>
+            <div class="form-text">All current members with this role will receive access.</div>
+          </div>
+
+          <!-- Specific User Input (toggleable) -->
+          <div class="mb-3 d-none" id="group-user-select">
             <label class="form-label" for="recipient">Recipient Username</label>
-            <input id="recipient" name="recipient" class="form-control" required
-                   placeholder="their_username" autocomplete="off">
+            <input id="recipient" name="recipient" class="form-control"
+                   placeholder="e.g. alice, bob" autocomplete="off">
+            <div class="form-text">Enter the exact username of a registered colleague.</div>
           </div>
 
           <div class="row g-3 mb-4">

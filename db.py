@@ -1,7 +1,7 @@
 import sqlite3
 from flask import current_app, g
 
-VALID_ROLES = ("user", "auditor", "security_admin", "compliance_officer", "it_admin")
+VALID_ROLES = ("user", "manager", "auditor", "security_admin", "compliance_officer", "it_admin")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT UNIQUE NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'auditor', 'security_admin', 'compliance_officer', 'it_admin')),
+    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'manager', 'auditor', 'security_admin', 'compliance_officer', 'it_admin')),
     public_key TEXT NOT NULL,
     enc_private_key TEXT NOT NULL,
     failed_attempts INTEGER NOT NULL DEFAULT 0,
@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS shares (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
     recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_role TEXT DEFAULT NULL,
     expires_at TEXT,
     max_downloads INTEGER,
     downloads INTEGER NOT NULL DEFAULT 0,
@@ -115,7 +116,7 @@ def init_db():
 
     # Migrate legacy users table CHECK constraint if needed
     user_sql = d.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").fetchone()
-    if user_sql and "auditor" not in user_sql[0]:
+    if user_sql and ("auditor" not in user_sql[0] or "manager" not in user_sql[0]):
         d.execute("PRAGMA foreign_keys=OFF")
         d.execute("""
             CREATE TABLE users_migrated (
@@ -123,7 +124,7 @@ def init_db():
                 username TEXT UNIQUE NOT NULL,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'auditor', 'security_admin', 'compliance_officer', 'it_admin')),
+                role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'manager', 'auditor', 'security_admin', 'compliance_officer', 'it_admin')),
                 public_key TEXT NOT NULL,
                 enc_private_key TEXT NOT NULL,
                 failed_attempts INTEGER NOT NULL DEFAULT 0,
@@ -146,6 +147,10 @@ def init_db():
 
     # Migrate legacy 'admin' roles to 'it_admin'
     d.execute("UPDATE users SET role='it_admin' WHERE role='admin'")
+
+    share_cols = [r["name"] for r in d.execute("PRAGMA table_info(shares)").fetchall()]
+    if "target_role" not in share_cols:
+        d.execute("ALTER TABLE shares ADD COLUMN target_role TEXT DEFAULT NULL")
 
     file_cols = [r["name"] for r in d.execute("PRAGMA table_info(files)").fetchall()]
     if "sha256" in file_cols:

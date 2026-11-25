@@ -107,6 +107,9 @@
               {% set st = share_status(s) %}
               <div class="share-item-row">
                 <span class="small text-muted">{{ s['recipient'] }}</span>
+                {% if s['target_role'] %}
+                  <span class="badge text-bg-warning font-mono" title="Shared via Role">{{ s['target_role']|upper }}</span>
+                {% endif %}
                 <span class="badge text-bg-{{ 'success' if st == 'active' else 'secondary' }}">{{ st }}</span>
                 {% if s['max_downloads'] %}
                   <span class="small text-dim font-mono">
@@ -201,6 +204,9 @@
           </td>
           <td>
             <span class="small text-muted">{{ s['owner'] }}</span>
+            {% if s['target_role'] %}
+              <div class="small text-cyan font-mono" title="Shared with your role">👥 via {{ ROLES.get(s['target_role'], s['target_role']) }}</div>
+            {% endif %}
           </td>
           <td>
             {% set scls = s['classification'] or 'internal' %}

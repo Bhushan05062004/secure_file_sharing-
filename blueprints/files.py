@@ -236,8 +236,7 @@ def share(file_id):
         abort(403, "Only the file owner can share this file.")
 
     if request.method == "POST":
-        rname = request.form.get("recipient", "").strip()
-        recipient = db.execute("SELECT * FROM users WHERE username=?", (rname,)).fetchone()
+        share_type = request.form.get("share_type", "user").strip()  # "role" or "user"
         try:
             hours = int(request.form["expiry_hours"]) if request.form.get("expiry_hours") else None
             limit = int(request.form["max_downloads"]) if request.form.get("max_downloads") else None
@@ -248,48 +247,129 @@ def share(file_id):
         cls_info = policy.CLASSIFICATIONS.get(f_cls, policy.CLASSIFICATIONS["internal"])
         max_allowed_hours = cls_info["max_expiry_hours"]
 
-        if recipient is None or recipient["id"] == g.user["id"]:
-            flash("Enter the username of another registered user.", "danger")
-        elif recipient["role"] not in cls_info["allowed_recipient_roles"]:
-            audit.log("SHARE_DENIED", False, target=f"file:{file_id}",
-                      details=f"recipient '{rname}' role '{recipient['role']}' not authorized for {f_cls.upper()}")
-            flash(f"User '{rname}' (role: {recipient['role']}) is not authorized to receive {f_cls.upper()} classified files.", "danger")
-        elif (hours is not None and not 1 <= hours <= max_allowed_hours) or \
-             (limit is not None and not 1 <= limit <= 1000):
+        if (hours is not None and not 1 <= hours <= max_allowed_hours) or \
+           (limit is not None and not 1 <= limit <= 1000):
             flash(f"For {f_cls.upper()} files, expiry must be 1-{max_allowed_hours} hours and download limit 1-1000.", "danger")
+            return render_template("share.html", f=f, roles=policy.ROLES)
+
+        if hours is None and f_cls in ("confidential", "restricted"):
+            hours = max_allowed_hours
+
+        priv = current_app.keystore_get(session.get("sid"))
+        if priv is None:
+            session.clear()
+            flash("Your key session expired. Please log in again.", "warning")
+            return redirect(url_for("auth.login"))
+
+        own = db.execute("SELECT wrapped_key FROM file_keys WHERE file_id=? AND user_id=?",
+                         (file_id, g.user["id"])).fetchone()
+        if not own:
+            abort(403, "Encryption key not found.")
+        aes_key = cu.unwrap_key(priv, own["wrapped_key"])
+
+        exp = None
+        if hours:
+            exp = (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat(timespec="seconds")
+
+        if share_type == "role":
+            target_role = request.form.get("target_role", "").strip()
+            if target_role not in policy.ROLES:
+                flash("Please select a valid enterprise role.", "danger")
+                return render_template("share.html", f=f, roles=policy.ROLES)
+
+            if target_role not in cls_info["allowed_recipient_roles"]:
+                audit.log("SHARE_DENIED", False, target=f"file:{file_id}",
+                          details=f"role '{target_role}' not authorized for {f_cls.upper()}")
+                flash(f"Role '{policy.ROLES.get(target_role, target_role)}' is not authorized to receive {f_cls.upper()} classified files.", "danger")
+                return render_template("share.html", f=f, roles=policy.ROLES)
+
+            recipients = db.execute(
+                "SELECT id, username, public_key, role FROM users WHERE role=? AND id!=?",
+                (target_role, g.user["id"])
+            ).fetchall()
+
+            if not recipients:
+                role_label = policy.ROLES.get(target_role, target_role)
+                flash(f"No registered users found with role '{role_label}'.", "warning")
+                return render_template("share.html", f=f, roles=policy.ROLES)
+
+            count = 0
+            for r in recipients:
+                wrapped = cu.wrap_key(r["public_key"], aes_key)
+                db.execute("UPDATE shares SET revoked=1 WHERE file_id=? AND recipient_id=?",
+                           (file_id, r["id"]))
+                db.execute("INSERT OR REPLACE INTO file_keys VALUES (?,?,?)",
+                           (file_id, r["id"], wrapped))
+                db.execute(
+                    "INSERT INTO shares (file_id, recipient_id, target_role, expires_at, max_downloads, created_at)"
+                    " VALUES (?,?,?,?,?,?)",
+                    (file_id, r["id"], target_role, exp, limit, audit.now_iso())
+                )
+                count += 1
+
+            role_label = policy.ROLES.get(target_role, target_role)
+            audit.log("SHARE_ROLE", True, target=f"file:{file_id}",
+                      details=f"to role '{target_role}' ({count} users); expires={exp}; max={limit}")
+            flash(f"File encrypted and shared with all {count} user(s) in role '{role_label}'.", "success")
+            return redirect(url_for("files.dashboard"))
+
         else:
-            if hours is None and f_cls in ("confidential", "restricted"):
-                hours = max_allowed_hours
+            rname = request.form.get("recipient", "").strip()
+            recipient = db.execute("SELECT * FROM users WHERE username=?", (rname,)).fetchone()
 
-            priv = current_app.keystore_get(session.get("sid"))
-            if priv is None:
-                session.clear()
-                flash("Your key session expired. Please log in again.", "warning")
-                return redirect(url_for("auth.login"))
+            if recipient is None or recipient["id"] == g.user["id"]:
+                flash("Enter the username of another registered user.", "danger")
+                return render_template("share.html", f=f, roles=policy.ROLES)
 
-            own = db.execute("SELECT wrapped_key FROM file_keys WHERE file_id=? AND user_id=?",
-                             (file_id, g.user["id"])).fetchone()
-            aes_key = cu.unwrap_key(priv, own["wrapped_key"])
-            wrapped = cu.wrap_key(recipient["public_key"], aes_key)  # re-wrap for recipient
+            if recipient["role"] not in cls_info["allowed_recipient_roles"]:
+                audit.log("SHARE_DENIED", False, target=f"file:{file_id}",
+                          details=f"recipient '{rname}' role '{recipient['role']}' not authorized for {f_cls.upper()}")
+                flash(f"User '{rname}' (role: {recipient['role']}) is not authorized to receive {f_cls.upper()} classified files.", "danger")
+                return render_template("share.html", f=f, roles=policy.ROLES)
 
+            wrapped = cu.wrap_key(recipient["public_key"], aes_key)
             db.execute("UPDATE shares SET revoked=1 WHERE file_id=? AND recipient_id=?",
                        (file_id, recipient["id"]))
             db.execute("INSERT OR REPLACE INTO file_keys VALUES (?,?,?)",
                        (file_id, recipient["id"], wrapped))
-            exp = None
-            if hours:
-                exp = (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat(timespec="seconds")
             db.execute(
-                "INSERT INTO shares (file_id,recipient_id,expires_at,max_downloads,created_at)"
-                " VALUES (?,?,?,?,?)",
-                (file_id, recipient["id"], exp, limit, audit.now_iso())
+                "INSERT INTO shares (file_id, recipient_id, target_role, expires_at, max_downloads, created_at)"
+                " VALUES (?,?,?,?,?,?)",
+                (file_id, recipient["id"], None, exp, limit, audit.now_iso())
             )
             audit.log("SHARE", True, target=f"file:{file_id}",
                       details=f"to {rname}; expires={exp}; max={limit}")
             flash(f"Shared with {rname}.", "success")
             return redirect(url_for("files.dashboard"))
 
-    return render_template("share.html", f=f)
+    return render_template("share.html", f=f, roles=policy.ROLES)
+
+
+@files_bp.route("/revoke-role/<int:file_id>/<string:role>", methods=["POST"])
+@login_required
+def revoke_role_shares(file_id, role):
+    db = database.get_db()
+    f = db.execute("SELECT * FROM files WHERE id=?", (file_id,)).fetchone()
+    if f is None:
+        abort(404)
+
+    if not policy.can(g.user, "share_file", f) and not policy.can(g.user, "revoke_any_share"):
+        audit.log("OWNERSHIP_VIOLATION", False, target=f"file:{file_id}", details=request.path)
+        abort(403, "You do not have permission to revoke shares for this file.")
+
+    role_shares = db.execute(
+        "SELECT id, recipient_id FROM shares WHERE file_id=? AND target_role=? AND revoked=0",
+        (file_id, role)
+    ).fetchall()
+
+    for s in role_shares:
+        db.execute("UPDATE shares SET revoked=1 WHERE id=?", (s["id"],))
+        db.execute("DELETE FROM file_keys WHERE file_id=? AND user_id=?", (file_id, s["recipient_id"]))
+
+    role_label = policy.ROLES.get(role, role)
+    audit.log("REVOKE_ROLE", True, target=f"file:{file_id}", details=f"revoked for role '{role}' ({len(role_shares)} shares)")
+    flash(f"Access revoked for all members of role '{role_label}'.", "info")
+    return redirect(url_for("files.dashboard"))
 
 
 @files_bp.route("/revoke/<int:share_id>", methods=["POST"])

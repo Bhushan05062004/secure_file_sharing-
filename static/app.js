@@ -96,6 +96,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  /* ── Share Type Toggle (Role vs User) ── */
+  const typeRole = document.getElementById('type-role');
+  const typeUser = document.getElementById('type-user');
+  const roleGroup = document.getElementById('group-role-select');
+  const userGroup = document.getElementById('group-user-select');
+  const recipientInput = document.getElementById('recipient');
+
+  if (typeRole && typeUser && roleGroup && userGroup) {
+    const updateShareType = () => {
+      if (typeRole.checked) {
+        roleGroup.classList.remove('d-none');
+        userGroup.classList.add('d-none');
+        if (recipientInput) recipientInput.removeAttribute('required');
+      } else {
+        roleGroup.classList.add('d-none');
+        userGroup.classList.remove('d-none');
+        if (recipientInput) recipientInput.setAttribute('required', 'required');
+      }
+    };
+    typeRole.addEventListener('change', updateShareType);
+    typeUser.addEventListener('change', updateShareType);
+  }
+
   /* ── Form Submit Loading Spinner ── */
   const formsToHandle = [
     { formId: 'login-form', btnId: 'login-btn', text: 'Authenticating...' },

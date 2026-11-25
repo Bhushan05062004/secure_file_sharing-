@@ -12,6 +12,7 @@ import db as database
 # Granular enterprise roles
 ROLES = {
     "user": "Standard Employee",
+    "manager": "Department Manager",
     "auditor": "Security & Financial Auditor",
     "security_admin": "Information Security Administrator",
     "compliance_officer": "Data Governance & Compliance Officer",
@@ -24,28 +25,28 @@ CLASSIFICATIONS = {
         "label": "Public",
         "description": "Publicly disclosable information",
         "max_expiry_hours": 8760,  # 1 year
-        "allowed_recipient_roles": {"user", "auditor", "security_admin", "compliance_officer", "it_admin"},
+        "allowed_recipient_roles": {"user", "manager", "auditor", "security_admin", "compliance_officer", "it_admin"},
         "badge_class": "badge-public"
     },
     "internal": {
         "label": "Internal",
         "description": "Standard company internal data",
         "max_expiry_hours": 2160,  # 90 days
-        "allowed_recipient_roles": {"user", "auditor", "security_admin", "compliance_officer", "it_admin"},
+        "allowed_recipient_roles": {"user", "manager", "auditor", "security_admin", "compliance_officer", "it_admin"},
         "badge_class": "badge-internal"
     },
     "confidential": {
         "label": "Confidential",
         "description": "Sensitive business or personnel data",
         "max_expiry_hours": 336,   # 14 days
-        "allowed_recipient_roles": {"user", "security_admin", "compliance_officer", "it_admin"},
+        "allowed_recipient_roles": {"user", "manager", "security_admin", "compliance_officer", "it_admin"},
         "badge_class": "badge-confidential"
     },
     "restricted": {
         "label": "Restricted",
         "description": "High-impact trade secrets or critical credentials",
         "max_expiry_hours": 24,    # 24 hours
-        "allowed_recipient_roles": {"security_admin", "compliance_officer", "it_admin"},
+        "allowed_recipient_roles": {"manager", "security_admin", "compliance_officer", "it_admin"},
         "badge_class": "badge-restricted"
     }
 }
@@ -56,6 +57,13 @@ ROLE_PERMISSIONS = {
         "view_dashboard",
         "upload_file",
         "view_audit_logs_own",
+        "change_password"
+    },
+    "manager": {
+        "view_dashboard",
+        "upload_file",
+        "view_audit_logs_own",
+        "view_users",
         "change_password"
     },
     "auditor": {
@@ -149,13 +157,13 @@ def can(user, action: str, resource=None) -> bool:
         return role in {"auditor", "security_admin", "compliance_officer"}
 
     if action in {"view_users", "view_groups"}:
-        return role in {"auditor", "security_admin", "compliance_officer", "it_admin"}
+        return role in {"manager", "auditor", "security_admin", "compliance_officer", "it_admin"}
 
     if action in {"manage_users", "manage_groups"}:
         return role in {"security_admin", "it_admin"}
 
     if action == "upload_file":
-        return role in {"user", "it_admin"}
+        return role in {"user", "manager", "it_admin"}
 
     if action == "share_file":
         if not resource:
